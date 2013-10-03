@@ -1,0 +1,6 @@
+name = GivingPoint Homepage
+description =  Module to implement the homepage of mygivingpoint.org .
+package = givingpoint
+version = "6.x-0.1"
+dependencies[] = gpapi
+core = 6.x

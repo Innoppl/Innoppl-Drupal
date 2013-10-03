@@ -1,0 +1,1870 @@
+<?php
+
+/**
+ * Provides the menu entry located at donation/paypal
+ */
+function gp_donation_menu() {
+  $items['donation/paypal'] = array(
+      'title' => 'Project Donation',
+      'page callback' => 'gp_donation_site_page',
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK);
+  $items['donation/event/paypal'] = array(
+      'title' => 'Event Donation',
+      'page callback' => 'gp_donation_event_page',
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK);
+  
+  $items['donation/givingpoint'] = array(
+      'title' => 'GivingPoint Donation',
+      'page callback' => 'gp_giving_donation_site_page',
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK);
+
+  $items['donation/paypal/%'] = array(
+      'title' => 'Project Donation',
+      'page callback' => 'gp_donation_site_page',
+      'page arguments' => array(2),
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK);
+  $items['donation/event/paypal/%'] = array(
+      'title' => 'Event Donation',
+      'page callback' => 'gp_donation_event_page',
+      'page arguments' => array(3),
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK);
+      
+  $items['donation/thanks/%/%'] = array(
+      'title' => 'Thank you for your donation',
+      'page callback' => 'gp_donation_thanks_page',
+      'page arguments' => array(2,3),
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK);
+
+  $items['donation/thanks/%'] = array(
+      'title' => 'Thank you for your donation',
+      'page callback' => 'gp_donation_thanks_page',
+      'page arguments' => array(2),
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK);
+
+  return $items;
+}
+
+/**
+ * Builds the form input fields for the general
+ * information section.
+ *
+ * @TODO:  determine which of these are required
+ */
+function _gp_donation_form_step1($form_state) {
+  global $user;
+
+  if (empty($form_state['storage']['project_id'])) {
+  
+    $sql = "select node.nid,node.title, content_type_project.field_end_date_value as field_end_date_value,
+                content_type_project.field_donation_value as field_donation_value
+                from node
+                left join content_type_project on node.nid = content_type_project.nid
+                where node.type='project' and content_type_project.field_donation_value > 0
+                order by node.title asc";
+
+    $result_set = db_query($sql);
+
+    $options_array = array(''=>'Please choose');
+    while($row = db_fetch_array($result_set)) {
+      $amount_raised =  get_total_approved_donations($row['nid']);
+      if(strtotime($row['field_end_date_value']) < time() &&
+          $row['field_donation_value'] > $amount_raised) {
+        $options_array[$row['nid']] = $row['title'];
+      }
+    }
+
+    $form['project'] = array(
+        '#type' => 'select',
+        '#title' => t('Select project'),
+        '#required' => true,
+        '#default_value' => passion_dv($form_state['storage']['values'][1]['project'],$form_state['values']['project']),
+        '#options' => $options_array,
+		'#weight' => -5,
+
+
+    );
+    
+  }
+  else
+  {
+    $project_id = $form_state['storage']['project_id'];
+    $project_info = node_load($project_id);
+    $teen_info = user_load($project_info->uid);
+    $amount_needed = get_project_donation_amount_needed($project_info->nid);
+    $amount_raised =  get_total_approved_donations($project_info->nid);
+    $donation_short_by = $amount_needed - $amount_raised;
+    //Todo: display the project name, teen name, project picture, and how much is still needed.
+    $form['text']['project_name'] = array('#weight'=>-110,'#value'=>"<strong>Project name:</strong>&nbsp;".$project_info->title.'<br />');
+    $form['text']['teen_name'] = array('#weight'=>-98,'#value'=>"<strong>Posted by:</strong>&nbsp;".gpapi_displayname($teen_info).'<br/>');
+    $form['text']['project_image'] = array('#weight' => -120, '#value' => theme('imagecache', '155x155', $project_info->field_primary_image[0]['filepath']));
+    $form['text']['project_image']['#prefix']="<div class='project-donation border-radius line-height'><div class='project-donation-image box-inline float-l'>";
+    $form['text']['project_image']['#suffix']="</div><div>";
+    $form['text']['amount_still_needed'] = array('#weight' => -94, '#value' => "<strong>Still needed:</strong>&nbsp;"."$".$donation_short_by.'</div><div class="clear" /></div><div class="clear" /></div>' );
+
+  }
+  
+if($user->uid == 0) {
+
+  $form['user_email'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Email Address'),
+      '#required' => true,
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['user_email'],$form_state['values']['user_email']),
+      '#weight' => -10,
+
+  );
+
+
+  $form['user_first_name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('First Name'),
+      '#required' => true,
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['user_first_name'],$form_state['values']['user_first_name']),
+      '#weight' => -8,
+
+  );
+
+  $form['user_last_name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Last Name'),
+      '#required' => true,
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['user_last_name'],$form_state['values']['user_last_name']),
+      '#weight' => -7,
+
+  );
+
+}
+
+if($user->uid != 1) {
+  $form['donation_for'] = array(
+      '#type' => 'select',
+      '#default_value' => !isset($form_state['values']['donation_for'])?'project':$form_state['values']['donation_for'],
+      '#title' => t('Choose one from below'),
+      '#required' => TRUE,
+      '#weight' => 1,
+      '#options' => array('project'=>'Project Donation', 'pledge'=>'Pledge Payment', 'event'=>'Event Donation'),
+	
+  );
+  
+  $form['donation_type'] = array(
+      '#type' => 'radios',
+      '#default_value' => !isset($form_state['values']['donation_type'])?0:$form_state['values']['donation_type'],
+      '#title' => t('How would you like to donate?'),
+      '#required' => TRUE,
+      '#weight' => 2,
+      '#options' => array(t('Donate via Paypal'), t('Credit Card'),t('Using Giving Card')),
+	  '#prefix' => "<div id='donate-gpcode-pp'>",
+  );
+}
+  $form['amount'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['amount'],$form_state['values']['amount']),
+      '#title' => t('Donation Amount'),
+      '#maxlength' => 10,
+      '#size'      => 10,
+      '#element_validate' => array('gp_donation_amount_validator'),
+    //  '#required' => TRUE,
+      '#weight' => 3,
+     // '#description' => "MINIMUM donation is $10 <br/>  MAXIMUM donation is $2,500",
+
+  );
+  $form['pledge_amount'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['pledge_amount'],$form_state['values']['pledge_amount']),
+      '#title' => t('One time Donation'),
+      '#maxlength' => 10,
+      '#size'      => 10,
+      '#element_validate' => array('gp_donation_pledge_amount_validator'),
+      '#weight' => 4,
+     
+
+  );
+
+if($user->uid == 1) {
+  $form['payment_details'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['payment_details'],$form_state['values']['payment_details']),
+      '#title' => t('Payment Details (Check number)'),
+      '#maxlength' => 30,
+      '#size'      => 10,
+      '#required' => TRUE,
+      '#weight' => 4,
+
+  );
+  $form['donorid'] = array(
+      '#type' => 'hidden',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['donorid'],$_GET['donorid']),
+      '#title' => t('Payment Details (Check number)'),
+      '#maxlength' => 10,
+      '#size'      => 10,
+    //  '#required' => TRUE,
+      '#weight' => 4,
+
+  );
+}
+
+if($user->uid != 1) {
+  $form['givingcard_code'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['givingcard_code'],$form_state['values']['givingcard_code']),
+      '#title' => t('Enter the GivingPoint code'),
+      '#maxlength' => 10000,
+      '#size'      => 30,
+      '#element_validate' => array('gp_donation_givingcode_validator'),
+     // '#required' => TRUE,
+      '#weight' => 5,
+      
+  );
+}
+  $form['message'] = array(
+      '#type' => 'textarea',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['message'],$form_state['values']['message']),
+      '#title' => t('Personal Message to the Teen or Nonprofit posting the project'),
+      '#rows' => 4,
+      '#required' => False,
+      '#weight' => 6,
+  );
+
+if($user->uid != 1) {
+  $form['is_anonymous'] = array(
+      '#type' => 'checkbox',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['is_anonymous'],$form_state['values']['is_anonymous']),
+      '#title' => t('Make my donation anonymous'),
+	  '#suffix' => "</div>",
+	   '#weight' => 8,
+  );
+} 
+
+  return $form;
+}
+
+function _gp_donation_event_form_step1($form_state) {
+  global $user;
+
+  if (empty($form_state['storage']['event_id'])) {
+  
+    $sql = "select node.nid,node.title, content_type_event.field_event_end_date_value as field_end_date_value,
+                content_type_event.field_donation_value as field_donation_value
+                from node
+                left join content_type_event on node.nid = content_type_event.nid
+                where node.type='event' and content_type_event.field_donation_value > 0
+                order by node.title asc";
+
+    $result_set = db_query($sql);
+
+    $options_array = array(''=>'Please choose');
+    while($row = db_fetch_array($result_set)) {
+      $amount_raised =  get_total_approved_donations($row['nid']);
+      if(strtotime($row['field_end_date_value']) < time() &&
+          $row['field_donation_value'] > $amount_raised) {
+        $options_array[$row['nid']] = $row['title'];
+      }
+    }
+
+    $form['project'] = array(
+        '#type' => 'select',
+        '#title' => t('Select event'),
+        '#required' => true,
+        '#default_value' => passion_dv($form_state['storage']['values'][1]['project'],$form_state['values']['project']),
+        '#options' => $options_array,
+		'#weight' => -5,
+
+
+    );
+    
+  }
+  else
+  {
+    $project_id = $form_state['storage']['event_id'];
+    $project_info = node_load($project_id);
+    $teen_info = user_load($project_info->uid);
+    $amount_needed = get_event_donation_amount_needed($project_info->nid);
+    $amount_raised =  get_total_approved_donations($project_info->nid);
+    $donation_short_by = $amount_needed - $amount_raised;
+    //Todo: display the project name, teen name, project picture, and how much is still needed.
+    $form['text']['project_name'] = array('#weight'=>-110,'#value'=>"<strong>Event name:</strong>&nbsp;".$project_info->title.'<br />');
+    $form['text']['teen_name'] = array('#weight'=>-98,'#value'=>"<strong>Posted by:</strong>&nbsp;".gpapi_displayname($teen_info).'<br/>');
+    if(!empty($project_info->field_event_primary_image[0]['filepath'])){
+    $form['text']['project_image'] = array('#weight' => -120, '#value' => theme('imagecache', '155x155', $project_info->field_event_primary_image[0]['filepath']));
+    }else{
+    $form['text']['project_image'] = array('#weight' => -120, '#value' => theme('imagecache', '155x155', 'sites/all/themes/gptheme/images/155_bw.png'));
+    }
+    $form['text']['project_image']['#prefix']="<div class='project-donation border-radius line-height'><div class='project-donation-image box-inline float-l'>";
+    $form['text']['project_image']['#suffix']="</div><div>";
+    $form['text']['amount_still_needed'] = array('#weight' => -94, '#value' => "<strong>Still needed:</strong>&nbsp;"."$".$donation_short_by.'</div><div class="clear" /></div><div class="clear" /></div>' );
+
+  }
+  
+if($user->uid == 0) {
+
+  $form['user_email'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Email Address'),
+      '#required' => true,
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['user_email'],$form_state['values']['user_email']),
+      '#weight' => -10,
+
+  );
+
+
+  $form['user_first_name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('First Name'),
+      '#required' => true,
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['user_first_name'],$form_state['values']['user_first_name']),
+      '#weight' => -8,
+
+  );
+
+  $form['user_last_name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Last Name'),
+      '#required' => true,
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['user_last_name'],$form_state['values']['user_last_name']),
+      '#weight' => -7,
+
+  );
+
+}
+
+if($user->uid != 1) {
+  $form['donation_for'] = array(
+      '#type' => 'select',
+      '#default_value' => !isset($form_state['values']['donation_for'])?'project':$form_state['values']['donation_for'],
+      '#title' => t('Choose one from below'),
+      '#required' => TRUE,
+      '#weight' => 1,
+      '#options' => array('project'=>'Project Donation', 'pledge'=>'Pledge Payment', 'event'=>'Event Donation'),
+	
+  );
+  
+  $form['donation_type'] = array(
+      '#type' => 'radios',
+      '#default_value' => !isset($form_state['values']['donation_type'])?0:$form_state['values']['donation_type'],
+      '#title' => t('How would you like to donate?'),
+      '#required' => TRUE,
+      '#weight' => 2,
+      '#options' => array(t('Donate via Paypal'), t('Credit Card'),t('Using Giving Card')),
+	  '#prefix' => "<div id='donate-gpcode-pp'>",
+  );
+}
+  $form['amount'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['amount'],$form_state['values']['amount']),
+      '#title' => t('Donation Amount'),
+      '#maxlength' => 10,
+      '#size'      => 10,
+      '#element_validate' => array('gp_event_donation_amount_validator'),
+    //  '#required' => TRUE,
+      '#weight' => 3,
+     // '#description' => "MINIMUM donation is $10 <br/>  MAXIMUM donation is $2,500",
+
+  );
+  $form['pledge_amount'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['pledge_amount'],$form_state['values']['pledge_amount']),
+      '#title' => t('One time Donation'),
+      '#maxlength' => 10,
+      '#size'      => 10,
+      '#element_validate' => array('gp_donation_pledge_amount_validator'),
+      '#weight' => 4,
+     
+
+  );
+
+if($user->uid == 1) {
+  $form['payment_details'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['payment_details'],$form_state['values']['payment_details']),
+      '#title' => t('Payment Details (Check number)'),
+      '#maxlength' => 30,
+      '#size'      => 10,
+      '#required' => TRUE,
+      '#weight' => 4,
+
+  );
+  $form['donorid'] = array(
+      '#type' => 'hidden',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['donorid'],$_GET['donorid']),
+      '#title' => t('Payment Details (Check number)'),
+      '#maxlength' => 10,
+      '#size'      => 10,
+    //  '#required' => TRUE,
+      '#weight' => 4,
+
+  );
+}
+
+if($user->uid != 1) {
+  $form['givingcard_code'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['givingcard_code'],$form_state['values']['givingcard_code']),
+      '#title' => t('Enter the GivingPoint code'),
+      '#maxlength' => 10000,
+      '#size'      => 30,
+      '#element_validate' => array('gp_donation_givingcode_validator'),
+     // '#required' => TRUE,
+      '#weight' => 5,
+      
+  );
+}
+  $form['message'] = array(
+      '#type' => 'textarea',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['message'],$form_state['values']['message']),
+      '#title' => t('Personal Message to the Teen or Nonprofit posting the project'),
+      '#rows' => 4,
+      '#required' => False,
+      '#weight' => 6,
+  );
+
+if($user->uid != 1) {
+  $form['is_anonymous'] = array(
+      '#type' => 'checkbox',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['is_anonymous'],$form_state['values']['is_anonymous']),
+      '#title' => t('Make my donation anonymous'),
+	  '#suffix' => "</div>",
+	   '#weight' => 8,
+  );
+} 
+
+  return $form;
+}
+/**
+ * The initial collection of causes.
+ */
+function _gp_donation_form_step2($form_state) {
+  global $user;
+  global $_lm_paypal_debug;
+  global $_lm_paypal_host;
+  global $_lm_paypal_business;
+  global $_lm_paypal_donations_thanks;
+
+  $logged_in_user = $user;
+
+if($user->uid == 0) {
+ //   echo "<pre>"; print_r($form_state); exit;
+    module_load_include('module', 'logintoboggan', 'logintoboggan');
+    if(isset($form_state['storage']['values'][1]['user_email']) && !empty($form_state['storage']['values'][1]['user_email'])) {
+        $is_user_exists = user_load(array('mail'=> $form_state['storage']['values'][1]['user_email'] ));
+      //  var_dump($is_user_exists); exit;
+        if(($is_user_exists == FALSE)) {
+          $frm  = array();
+          $frm_state = array();
+          $frm_state['values']['pass'] = user_password();
+          $frm_state['values']['mail'] = $form_state['storage']['values'][1]['user_email'];
+
+            $namenew = preg_replace('/@.*$/', '', $form_state['storage']['values'][1]['user_email']);
+            // if username generated from email record already exists, append underscore and number eg:(chris_123)
+            if (db_result(db_query("SELECT count(*) FROM {users} WHERE LOWER(name) = LOWER('%s')", $namenew)) > 0) {
+              // find the next number available to append to the name
+              $sql = "SELECT SUBSTRING_INDEX(name,'_',-1) FROM {users} WHERE name REGEXP '%s' ORDER BY CAST(SUBSTRING_INDEX(name,'_',-1) AS UNSIGNED) DESC LIMIT 1";
+              $nameidx = db_result(db_query($sql, '^'. $namenew .'_[0-9]+$'));
+              $namenew .= '_'. ($nameidx + 1);
+            }
+            
+          $frm_state['values']['name'] = $namenew;
+          $frm_state['values']['roles'] = array(2=>'authenticated user', 5=> 'Donor');
+          fm_handler_user_register_submit($frm, $frm_state);
+          $account = user_save('', array_merge($frm_state['values'], array('pass' => $frm_state['values']['pass'], 'init' => $frm_state['values']['mail'], 'roles' => $frm_state['values']['roles'], 'status' => 1)));
+          $account->password = $frm_state['values']['pass'];
+
+          gpapi_update_profile_info($account, 'profile_first_name', $form_state['storage']['values'][1]['user_first_name']);
+          gpapi_update_profile_info($account, 'profile_last_name', $form_state['storage']['values'][1]['user_last_name']);
+
+          $timestamp = time();
+          $validate_url = url("user/validate/$account->uid/$timestamp/". md5($timestamp . $account->pass . $account->mail), array('absolute' => TRUE));
+          $login_url = variable_get('user_register', 1) == 1 ? $validate_url : NULL;
+
+          $mailkey = 'register_no_approval_required';
+
+          // Mail the user.
+          _logintoboggan_mail_notify($mailkey, $account, $login_url);
+          $logged_in_user = $user;
+          $user = $account;
+        }
+        else {
+          $logged_in_user = $user;
+          $user = $is_user_exists;
+        }
+    }
+}
+
+//echo "<pre>"; print_r($form_state); exit;
+    if($user->uid == 1) {
+//echo "<pre>"; print_r($form_state); exit;
+        $logged_in_user = $user;
+        $user = user_load($form_state['storage']['values'][1]['donorid']);
+
+    $project_id = empty($form_state['storage']['project_id'])?
+          $form_state['storage']['values'][1]['project']:$form_state['storage']['project_id'];
+      $project = node_load($project_id);
+      $name = $project->title;
+      $payment_details = $form_state['storage']['values'][1]['payment_details'];
+      $amount =  $form_state['storage']['values'][1]['amount'];
+      $message = $form_state['storage']['values'][1]['message'];
+
+      //Create a donation node and attach it here
+      $node = new StdClass();
+      $node->type = 'project_donation';
+      $node->status = 1;
+      if (!empty($user->uid) && ($user->uid != 0)) {
+        $node->uid = $user->uid;
+      }
+      if (!empty($form_state['storage']['values'][1]['is_anonymous'])
+          && $form_state['storage']['values'][1]['is_anonymous'] == 1) {
+        $node->field_is_anonymous[0]['value'] = 1;
+      }
+      $node->title = "\$".number_format($amount,2)." donation to {$name}";
+      $node->body = $message;
+      $node->field_donation_amount[0]['value'] = $amount; //array(array('value' => $amount) );
+      $node->og_groups = array($project_id=>$project_id);
+      $node->og_groups_both = array($project_id=>$name);
+      $node->field_donation_type[0]['value'] = 'By Check';
+      $node->field_payment_details[0]['value'] = $payment_details;
+
+      node_submit($node);
+      node_save($node);
+
+    $donation_node_wid = module_invoke('workflow','get_workflow_for_type', 'project_donation');
+    if(!empty($donation_node_wid)){
+        $states = array_flip(module_invoke('workflow','get_states',$donation_node_wid));
+            if(isset ($states['Approved'])){
+                $sid = $states['Approved'];
+                module_invoke('workflow','execute_transition',$node,$sid,null,true);
+            }
+     }
+    $project->field_current_donation[0]['value'] = $project->field_current_donation[0]['value'] +  $node->field_donation_amount[0]['value'];
+    node_save($project);
+
+      $teen_info = user_load($project->uid);
+      profile_load_profile($teen_info);
+      gpapi_userpoint_calculation($teen_info, 'Treasure', $params = array('entity_id' => $node->nid, 'entity_name' => 'project_donation', 'donation_amount' => $node->field_donation_amount[0]['value']));
+      $donation_id = $node->nid;
+
+      $out = "<br /><div class=\"donation-confirmation\">";
+      $out .= "You've chosen to donate \$".number_format($amount,2)." to $name.";
+      $out .= '</div>';
+
+      $form['response'] = array(
+          '#id' => 'response',
+          '#type' => 'item',
+          '#value' => $out,
+      );
+
+        $user = $logged_in_user;
+
+        drupal_set_message('Your donation has been recieved');
+        drupal_goto(drupal_get_path_alias('node/'.$project_id));
+    }
+    else {
+if($form_state['values']['donation_type'] == 0) {
+
+  _lm_paypal_donations_ini();
+  $ccc = 'USD';
+
+  $project_id = empty($form_state['storage']['project_id'])?
+      $form_state['storage']['values'][1]['project']:$form_state['storage']['project_id'];
+  $project = node_load($project_id);
+  $name = $project->title;
+  $amount = $form_state['storage']['values'][1]['amount'];
+  $message = $form_state['storage']['values'][1]['message'];
+
+  //Create a donation node and attach it here
+  $node = new StdClass();
+  $node->type = 'project_donation';
+  $node->status = 1;
+  if (!empty($user->uid) && ($user->uid != 0)) {
+    $node->uid = $user->uid;
+  }
+  if (!empty($form_state['storage']['values'][1]['is_anonymous'])
+      && $form_state['storage']['values'][1]['is_anonymous'] == 1) {
+    $node->field_is_anonymous[0]['value'] = 1;
+  }
+  if($form_state['values']['donation_for'] == 'project') {
+  $node->title = "\$".number_format($amount,2)." donation to {$name}";
+  }else{
+  $node->title = "\$".number_format($amount,2)." pledge to {$name}";
+  }
+  $node->body = $message;
+  $node->field_donation_amount[0]['value'] = $amount; //array(array('value' => $amount) );
+  $node->field_donation_type[0]['value'] = 'Paypal';
+  $node->og_groups = array($project_id=>$project_id);
+  $node->og_groups_both = array($project_id=>$name);
+
+//print_r($form_state);
+//die();
+  node_submit($node);
+  node_save($node);
+
+  $donation_id = $node->nid;
+
+  $out = "<br /><div class=\"donation-confirmation\">";
+  if($form_state['values']['donation_for'] == 'project') {
+  $out .= "You've chosen to donate \$".number_format($amount,2)." to $name. On confirming, you'll be redirected to
+             Paypal to complete the payment process.";
+  }else{
+  $out .= "You've chosen to pledge \$".number_format($amount,2)." to $name. On confirming, you'll be redirected to
+             Paypal to complete the payment process.";
+  }
+  $out .= '</div>';
+
+  $form['response'] = array(
+      '#id' => 'response',
+      '#type' => 'item',
+      '#value' => $out,
+  );
+
+  //$ret_url = "http://www.mygivingpoint.org/donation/thanks/{$project_id}/{$donation_id}";
+  $ret_url = url("donation/thanks/{$project_id}/{$donation_id}",array('absolute'=>true));
+  $biz = check_plain($_lm_paypal_business);
+  if ($ret_url == '' || is_null($ret_url)) {
+    $ret_url = $_lm_paypal_donations_thanks;
+  }
+  if (variable_get('clean_url', 0)) {
+    $return_url = url(check_url($ret_url), array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  else {
+    $return_url = url(NULL, array('query' => 'q='. check_url($ret_url), 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  $notify_url = url('lm_paypal/ipn', array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  $form['cmd'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => '_xclick');
+  $form['business'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $biz);
+  $form['item_name'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $name);
+  $form['item_number'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $donation_id);
+  $form['notify_url'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $notify_url);
+  $form['amount'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $amount,
+      "#size" => '20');
+  $form['no_shipping'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['return'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $return_url);
+  $form['currency_code'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $ccc);
+  $form['no_note'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['custom'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $user->uid );
+
+  $form['#action'] = "https://$_lm_paypal_host/cgi-bin/webscr";
+    $user = $logged_in_user;
+}
+elseif($form_state['values']['donation_type'] == 1) {
+
+  _lm_paypal_donations_ini();
+  $ccc = 'USD';
+
+  $project_id = empty($form_state['storage']['project_id'])?
+      $form_state['storage']['values'][1]['project']:$form_state['storage']['project_id'];
+  $project = node_load($project_id);
+  $name = $project->title;
+  $amount = $form_state['storage']['values'][1]['pledge_amount'];
+  $message = $form_state['storage']['values'][1]['message'];
+
+  //Create a donation node and attach it here
+  $node = new StdClass();
+  $node->type = 'project_donation';
+  $node->status = 1;
+  if (!empty($user->uid) && ($user->uid != 0)) {
+    $node->uid = $user->uid;
+  }
+  if (!empty($form_state['storage']['values'][1]['is_anonymous'])
+      && $form_state['storage']['values'][1]['is_anonymous'] == 1) {
+    $node->field_is_anonymous[0]['value'] = 1;
+  }
+  if($form_state['values']['donation_for'] == 'pledge') {
+  $node->title = "\$".number_format($amount,2)." pledge to {$name}";
+  }else{
+  $node->title = "\$".number_format($amount,2)." donation to {$name}";
+  }
+  $node->body = $message;
+  $node->field_donation_amount[0]['value'] = $amount; //array(array('value' => $amount) );
+  $node->field_donation_type[0]['value'] = 'Credit card';
+  $node->og_groups = array($project_id=>$project_id);
+  $node->og_groups_both = array($project_id=>$name);
+
+//print_r($form_state);
+//die();
+  node_submit($node);
+  node_save($node);
+
+  $donation_id = $node->nid;
+
+  $out = "<br /><div class=\"donation-confirmation\">";
+  if($form_state['values']['donation_for'] == 'pledge') {
+  $out .= "You've chosen to pledge \$".number_format($amount,2)." to $name. On confirming, you'll be redirected to
+             Paypal to complete the payment process.";
+  }else{
+  $out .= "You've chosen to donation \$".number_format($amount,2)." to $name. On confirming, you'll be redirected to
+             Paypal to complete the payment process.";
+  }
+  $out .= '</div>';
+
+  $form['response'] = array(
+      '#id' => 'response',
+      '#type' => 'item',
+      '#value' => $out,
+  );
+
+  //$ret_url = "http://www.mygivingpoint.org/donation/thanks/{$project_id}/{$donation_id}";
+  $ret_url = url("donation/thanks/{$project_id}/{$donation_id}",array('absolute'=>true));
+  $biz = check_plain($_lm_paypal_business);
+  if ($ret_url == '' || is_null($ret_url)) {
+    $ret_url = $_lm_paypal_donations_thanks;
+  }
+  if (variable_get('clean_url', 0)) {
+    $return_url = url(check_url($ret_url), array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  else {
+    $return_url = url(NULL, array('query' => 'q='. check_url($ret_url), 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  $notify_url = url('lm_paypal/ipn', array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  $form['cmd'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => '_xclick');
+  $form['business'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $biz);
+  $form['item_name'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $name);
+  $form['item_number'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $donation_id);
+  $form['notify_url'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $notify_url);
+  $form['amount'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $amount,
+      "#size" => '20');
+  $form['no_shipping'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['return'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $return_url);
+  $form['currency_code'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $ccc);
+  $form['no_note'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['custom'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $user->uid );
+
+  $form['#action'] = "https://$_lm_paypal_host/cgi-bin/webscr";
+    $user = $logged_in_user;
+}
+
+elseif($form_state['values']['donation_type'] == 2) {
+   // echo"<pre>"; print_r($form_state['values']); exit;
+    $project_id = empty($form_state['storage']['project_id'])?
+          $form_state['storage']['values'][1]['project']:$form_state['storage']['project_id'];
+      $project = node_load($project_id);
+      $name = $project->title;
+      $givingcard_code = $form_state['values']['givingcard_code'];
+      $query = "select n.nid as nid, gp_code.field_givingcode_value as givingcode, gp_code.field_givingcode_amount_value as amount from node n
+                inner join content_type_givingpoint_code gp_code on n.nid = gp_code.nid
+                where n.type = '%s' and gp_code.field_givingcode_value = '%s'";
+      $givingcard_info = db_fetch_object(db_query($query,'givingpoint_code',$givingcard_code));
+      $amount = $givingcard_info->amount;
+      $message = $form_state['storage']['values'][1]['message'];
+
+      //Create a donation node and attach it here
+      $node = new StdClass();
+      $node->type = 'project_donation';
+      $node->status = 1;
+      if (!empty($user->uid) && ($user->uid != 0)) {
+        $node->uid = $user->uid;
+      }
+      if (!empty($form_state['storage']['values'][1]['is_anonymous'])
+          && $form_state['storage']['values'][1]['is_anonymous'] == 1) {
+        $node->field_is_anonymous[0]['value'] = 1;
+      }
+      if($form_state['values']['donation_for'] == 'pledge') {
+         $node->title = "\$".number_format($amount,2)." pledge to {$name}";
+      }else{
+         $node->title = "\$".number_format($amount,2)." donation to {$name}";
+      }
+      $node->body = $message;
+      $node->field_donation_amount[0]['value'] = $amount; //array(array('value' => $amount) );
+      $node->og_groups = array($project_id=>$project_id);
+      $node->og_groups_both = array($project_id=>$name);
+      $node->field_donation_type[0]['value'] = 'Giving Card';
+      $node->field_givingcode_reference[0]['nid'] = $givingcard_info->nid;
+
+      node_submit($node);
+      node_save($node);
+      
+    $donation_node_wid = module_invoke('workflow','get_workflow_for_type', 'project_donation');
+    if(!empty($donation_node_wid)){
+        $states = array_flip(module_invoke('workflow','get_states',$donation_node_wid));
+            if(isset ($states['Approved'])){
+                $sid = $states['Approved'];
+                module_invoke('workflow','execute_transition',$node,$sid,null,true);
+            }
+     }
+    $project->field_current_donation[0]['value'] = $project->field_current_donation[0]['value'] +  $node->field_donation_amount[0]['value'];
+    node_save($project);
+    
+     $givingcode_wid = module_invoke('workflow','get_workflow_for_type', 'givingpoint_code');
+      if(!empty($givingcode_wid)){
+          $givingcode_node = node_load($givingcard_info->nid);
+          $states = array_flip(module_invoke('workflow','get_states',$givingcode_wid));
+            $sid = $states['Used'];
+            module_invoke('workflow','execute_transition',$givingcode_node,$sid,null,true);
+            node_save($givingcode_node);
+
+      }
+      $teen_info = user_load($project->uid);
+      profile_load_profile($teen_info);
+      gpapi_userpoint_calculation($teen_info, 'Treasure', $params = array('entity_id' => $node->nid, 'entity_name' => 'project_donation', 'donation_amount' => $node->field_donation_amount[0]['value']));
+      $donation_id = $node->nid;
+
+      $out = "<br /><div class=\"donation-confirmation\">";
+      if($form_state['values']['donation_for'] == 'pledge') {
+      $out .= "You've chosen to redeem GivingCard number: ".$givingcard_code." and pledge \$".number_format($amount,2)." to $name.";
+      }else{
+      $out .= "You've chosen to redeem GivingCard number: ".$givingcard_code." and donate \$".number_format($amount,2)." to $name.";
+      }
+      $out .= '</div>';
+
+      $form['response'] = array(
+          '#id' => 'response',
+          '#type' => 'item',
+          '#value' => $out,
+      );
+
+        $user = $logged_in_user;
+        if($user->uid == 0) {
+            drupal_set_message('Your donation has been recieved');
+            drupal_goto(drupal_get_path_alias('node/'.$project_id));
+        }
+        else {
+            drupal_set_message('Your donation has been recieved');
+            drupal_goto("profile/{$user->uid}/donations");
+        }
+}
+    }
+  return $form;
+}
+/**
+ * The initial collection of causes.
+ */
+function _gp_donation_event_form_step2($form_state) {
+  global $user;
+  global $_lm_paypal_debug;
+  global $_lm_paypal_host;
+  global $_lm_paypal_business;
+  global $_lm_paypal_donations_thanks;
+
+  $logged_in_user = $user;
+
+if($user->uid == 0) {
+ //   echo "<pre>"; print_r($form_state); exit;
+    module_load_include('module', 'logintoboggan', 'logintoboggan');
+    if(isset($form_state['storage']['values'][1]['user_email']) && !empty($form_state['storage']['values'][1]['user_email'])) {
+        $is_user_exists = user_load(array('mail'=> $form_state['storage']['values'][1]['user_email'] ));
+      //  var_dump($is_user_exists); exit;
+        if(($is_user_exists == FALSE)) {
+          $frm  = array();
+          $frm_state = array();
+          $frm_state['values']['pass'] = user_password();
+          $frm_state['values']['mail'] = $form_state['storage']['values'][1]['user_email'];
+
+            $namenew = preg_replace('/@.*$/', '', $form_state['storage']['values'][1]['user_email']);
+            // if username generated from email record already exists, append underscore and number eg:(chris_123)
+            if (db_result(db_query("SELECT count(*) FROM {users} WHERE LOWER(name) = LOWER('%s')", $namenew)) > 0) {
+              // find the next number available to append to the name
+              $sql = "SELECT SUBSTRING_INDEX(name,'_',-1) FROM {users} WHERE name REGEXP '%s' ORDER BY CAST(SUBSTRING_INDEX(name,'_',-1) AS UNSIGNED) DESC LIMIT 1";
+              $nameidx = db_result(db_query($sql, '^'. $namenew .'_[0-9]+$'));
+              $namenew .= '_'. ($nameidx + 1);
+            }
+            
+          $frm_state['values']['name'] = $namenew;
+          $frm_state['values']['roles'] = array(2=>'authenticated user', 5=> 'Donor');
+          fm_handler_user_register_submit($frm, $frm_state);
+          $account = user_save('', array_merge($frm_state['values'], array('pass' => $frm_state['values']['pass'], 'init' => $frm_state['values']['mail'], 'roles' => $frm_state['values']['roles'], 'status' => 1)));
+          $account->password = $frm_state['values']['pass'];
+
+          gpapi_update_profile_info($account, 'profile_first_name', $form_state['storage']['values'][1]['user_first_name']);
+          gpapi_update_profile_info($account, 'profile_last_name', $form_state['storage']['values'][1]['user_last_name']);
+
+          $timestamp = time();
+          $validate_url = url("user/validate/$account->uid/$timestamp/". md5($timestamp . $account->pass . $account->mail), array('absolute' => TRUE));
+          $login_url = variable_get('user_register', 1) == 1 ? $validate_url : NULL;
+
+          $mailkey = 'register_no_approval_required';
+
+          // Mail the user.
+          _logintoboggan_mail_notify($mailkey, $account, $login_url);
+          $logged_in_user = $user;
+          $user = $account;
+        }
+        else {
+          $logged_in_user = $user;
+          $user = $is_user_exists;
+        }
+    }
+}
+
+//echo "<pre>"; print_r($form_state); exit;
+    if($user->uid == 1) {
+//echo "<pre>"; print_r($form_state); exit;
+        $logged_in_user = $user;
+        $user = user_load($form_state['storage']['values'][1]['donorid']);
+
+    $project_id = empty($form_state['storage']['event_id'])?
+          $form_state['storage']['values'][1]['project']:$form_state['storage']['event_id'];
+      $project = node_load($project_id);
+      $name = $project->title;
+      $payment_details = $form_state['storage']['values'][1]['payment_details'];
+      $amount =  $form_state['storage']['values'][1]['amount'];
+      $message = $form_state['storage']['values'][1]['message'];
+
+      //Create a donation node and attach it here
+      $node = new StdClass();
+      $node->type = 'project_donation';
+      $node->status = 1;
+      if (!empty($user->uid) && ($user->uid != 0)) {
+        $node->uid = $user->uid;
+      }
+      if (!empty($form_state['storage']['values'][1]['is_anonymous'])
+          && $form_state['storage']['values'][1]['is_anonymous'] == 1) {
+        $node->field_is_anonymous[0]['value'] = 1;
+      }
+      $node->title = "\$".number_format($amount,2)." donation to {$name}";
+      $node->body = $message;
+      $node->field_donation_amount[0]['value'] = $amount; //array(array('value' => $amount) );
+      $node->og_groups = array($project_id=>$project_id);
+      $node->og_groups_both = array($project_id=>$name);
+      $node->field_donation_type[0]['value'] = 'By Check';
+      $node->field_payment_details[0]['value'] = $payment_details;
+
+      node_submit($node);
+      node_save($node);
+
+    $donation_node_wid = module_invoke('workflow','get_workflow_for_type', 'project_donation');
+    if(!empty($donation_node_wid)){
+        $states = array_flip(module_invoke('workflow','get_states',$donation_node_wid));
+            if(isset ($states['Approved'])){
+                $sid = $states['Approved'];
+                module_invoke('workflow','execute_transition',$node,$sid,null,true);
+            }
+     }
+    $project->field_current_donation[0]['value'] = $project->field_current_donation[0]['value'] +  $node->field_donation_amount[0]['value'];
+    node_save($project);
+
+      $teen_info = user_load($project->uid);
+      profile_load_profile($teen_info);
+      gpapi_userpoint_calculation($teen_info, 'Treasure', $params = array('entity_id' => $node->nid, 'entity_name' => 'project_donation', 'donation_amount' => $node->field_donation_amount[0]['value']));
+      $donation_id = $node->nid;
+
+      $out = "<br /><div class=\"donation-confirmation\">";
+      $out .= "You've chosen to donate \$".number_format($amount,2)." to $name.";
+      $out .= '</div>';
+
+      $form['response'] = array(
+          '#id' => 'response',
+          '#type' => 'item',
+          '#value' => $out,
+      );
+
+        $user = $logged_in_user;
+
+        drupal_set_message('Your donation has been recieved');
+        drupal_goto(drupal_get_path_alias('node/'.$project_id));
+    }
+    else {
+if($form_state['values']['donation_type'] == 0) {
+
+  _lm_paypal_donations_ini();
+  $ccc = 'USD';
+
+  $project_id = empty($form_state['storage']['event_id'])?
+      $form_state['storage']['values'][1]['project']:$form_state['storage']['event_id'];
+  $project = node_load($project_id);
+  $name = $project->title;
+  $amount = $form_state['storage']['values'][1]['amount'];
+  $message = $form_state['storage']['values'][1]['message'];
+
+  //Create a donation node and attach it here
+  $node = new StdClass();
+  $node->type = 'project_donation';
+  $node->status = 1;
+  if (!empty($user->uid) && ($user->uid != 0)) {
+    $node->uid = $user->uid;
+  }
+  if (!empty($form_state['storage']['values'][1]['is_anonymous'])
+      && $form_state['storage']['values'][1]['is_anonymous'] == 1) {
+    $node->field_is_anonymous[0]['value'] = 1;
+  }
+  if($form_state['values']['donation_for'] == 'event') {
+  $node->title = "\$".number_format($amount,2)." donation to {$name}";
+  }
+  $node->body = $message;
+  $node->field_donation_amount[0]['value'] = $amount; //array(array('value' => $amount) );
+  $node->field_donation_type[0]['value'] = 'Paypal';
+  $node->og_groups = array($project_id=>$project_id);
+  $node->og_groups_both = array($project_id=>$name);
+
+//print_r($form_state);
+//die();
+  node_submit($node);
+  node_save($node);
+
+  $donation_id = $node->nid;
+
+  $out = "<br /><div class=\"donation-confirmation\">";
+  if($form_state['values']['donation_for'] == 'event') {
+  $out .= "You've chosen to donate \$".number_format($amount,2)." to $name. On confirming, you'll be redirected to
+             Paypal to complete the payment process.";
+  }
+  $out .= '</div>';
+
+  $form['response'] = array(
+      '#id' => 'response',
+      '#type' => 'item',
+      '#value' => $out,
+  );
+
+  //$ret_url = "http://www.mygivingpoint.org/donation/thanks/{$project_id}/{$donation_id}";
+  $ret_url = url("donation/thanks/{$project_id}/{$donation_id}",array('absolute'=>true));
+  $biz = check_plain($_lm_paypal_business);
+  if ($ret_url == '' || is_null($ret_url)) {
+    $ret_url = $_lm_paypal_donations_thanks;
+  }
+  if (variable_get('clean_url', 0)) {
+    $return_url = url(check_url($ret_url), array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  else {
+    $return_url = url(NULL, array('query' => 'q='. check_url($ret_url), 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  $notify_url = url('lm_paypal/ipn', array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  $form['cmd'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => '_xclick');
+  $form['business'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $biz);
+  $form['item_name'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $name);
+  $form['item_number'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $donation_id);
+  $form['notify_url'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $notify_url);
+  $form['amount'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $amount,
+      "#size" => '20');
+  $form['no_shipping'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['return'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $return_url);
+  $form['currency_code'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $ccc);
+  $form['no_note'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['custom'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $user->uid );
+
+  $form['#action'] = "https://$_lm_paypal_host/cgi-bin/webscr";
+    $user = $logged_in_user;
+}
+elseif($form_state['values']['donation_type'] == 1) {
+
+  _lm_paypal_donations_ini();
+  $ccc = 'USD';
+
+  $project_id = empty($form_state['storage']['event_id'])?
+      $form_state['storage']['values'][1]['project']:$form_state['storage']['event_id'];
+  $project = node_load($project_id);
+  $name = $project->title;
+  $amount = $form_state['storage']['values'][1]['pledge_amount'];
+  $message = $form_state['storage']['values'][1]['message'];
+
+  //Create a donation node and attach it here
+  $node = new StdClass();
+  $node->type = 'project_donation';
+  $node->status = 1;
+  if (!empty($user->uid) && ($user->uid != 0)) {
+    $node->uid = $user->uid;
+  }
+  if (!empty($form_state['storage']['values'][1]['is_anonymous'])
+      && $form_state['storage']['values'][1]['is_anonymous'] == 1) {
+    $node->field_is_anonymous[0]['value'] = 1;
+  }
+  if($form_state['values']['donation_for'] == 'event') {
+  
+  $node->title = "\$".number_format($amount,2)." donation to {$name}";
+  }
+  $node->body = $message;
+  $node->field_donation_amount[0]['value'] = $amount; //array(array('value' => $amount) );
+  $node->field_donation_type[0]['value'] = 'Credit card';
+  $node->og_groups = array($project_id=>$project_id);
+  $node->og_groups_both = array($project_id=>$name);
+
+//print_r($form_state);
+//die();
+  node_submit($node);
+  node_save($node);
+
+  $donation_id = $node->nid;
+
+  $out = "<br /><div class=\"donation-confirmation\">";
+  if($form_state['values']['donation_for'] == 'event') {
+  
+  $out .= "You've chosen to donation \$".number_format($amount,2)." to $name. On confirming, you'll be redirected to
+             Paypal to complete the payment process.";
+  }
+  $out .= '</div>';
+
+  $form['response'] = array(
+      '#id' => 'response',
+      '#type' => 'item',
+      '#value' => $out,
+  );
+
+  //$ret_url = "http://www.mygivingpoint.org/donation/thanks/{$project_id}/{$donation_id}";
+  $ret_url = url("donation/thanks/{$project_id}/{$donation_id}",array('absolute'=>true));
+  $biz = check_plain($_lm_paypal_business);
+  if ($ret_url == '' || is_null($ret_url)) {
+    $ret_url = $_lm_paypal_donations_thanks;
+  }
+  if (variable_get('clean_url', 0)) {
+    $return_url = url(check_url($ret_url), array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  else {
+    $return_url = url(NULL, array('query' => 'q='. check_url($ret_url), 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  $notify_url = url('lm_paypal/ipn', array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  $form['cmd'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => '_xclick');
+  $form['business'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $biz);
+  $form['item_name'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $name);
+  $form['item_number'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $donation_id);
+  $form['notify_url'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $notify_url);
+  $form['amount'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $amount,
+      "#size" => '20');
+  $form['no_shipping'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['return'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $return_url);
+  $form['currency_code'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $ccc);
+  $form['no_note'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['custom'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $user->uid );
+
+  $form['#action'] = "https://$_lm_paypal_host/cgi-bin/webscr";
+    $user = $logged_in_user;
+}
+
+elseif($form_state['values']['donation_type'] == 2) {
+   // echo"<pre>"; print_r($form_state['values']); exit;
+    $project_id = empty($form_state['storage']['project_id'])?
+          $form_state['storage']['values'][1]['project']:$form_state['storage']['project_id'];
+      $project = node_load($project_id);
+      $name = $project->title;
+      $givingcard_code = $form_state['values']['givingcard_code'];
+      $query = "select n.nid as nid, gp_code.field_givingcode_value as givingcode, gp_code.field_givingcode_amount_value as amount from node n
+                inner join content_type_givingpoint_code gp_code on n.nid = gp_code.nid
+                where n.type = '%s' and gp_code.field_givingcode_value = '%s'";
+      $givingcard_info = db_fetch_object(db_query($query,'givingpoint_code',$givingcard_code));
+      $amount = $givingcard_info->amount;
+      $message = $form_state['storage']['values'][1]['message'];
+
+      //Create a donation node and attach it here
+      $node = new StdClass();
+      $node->type = 'project_donation';
+      $node->status = 1;
+      if (!empty($user->uid) && ($user->uid != 0)) {
+        $node->uid = $user->uid;
+      }
+      if (!empty($form_state['storage']['values'][1]['is_anonymous'])
+          && $form_state['storage']['values'][1]['is_anonymous'] == 1) {
+        $node->field_is_anonymous[0]['value'] = 1;
+      }
+      if($form_state['values']['donation_for'] == 'event') {
+         
+         $node->title = "\$".number_format($amount,2)." donation to {$name}";
+      }
+      $node->body = $message;
+      $node->field_donation_amount[0]['value'] = $amount; //array(array('value' => $amount) );
+      $node->og_groups = array($project_id=>$project_id);
+      $node->og_groups_both = array($project_id=>$name);
+      $node->field_donation_type[0]['value'] = 'Giving Card';
+      $node->field_givingcode_reference[0]['nid'] = $givingcard_info->nid;
+
+      node_submit($node);
+      node_save($node);
+      
+    $donation_node_wid = module_invoke('workflow','get_workflow_for_type', 'project_donation');
+    if(!empty($donation_node_wid)){
+        $states = array_flip(module_invoke('workflow','get_states',$donation_node_wid));
+            if(isset ($states['Approved'])){
+                $sid = $states['Approved'];
+                module_invoke('workflow','execute_transition',$node,$sid,null,true);
+            }
+     }
+    $project->field_current_donation[0]['value'] = $project->field_current_donation[0]['value'] +  $node->field_donation_amount[0]['value'];
+    node_save($project);
+    
+     $givingcode_wid = module_invoke('workflow','get_workflow_for_type', 'givingpoint_code');
+      if(!empty($givingcode_wid)){
+          $givingcode_node = node_load($givingcard_info->nid);
+          $states = array_flip(module_invoke('workflow','get_states',$givingcode_wid));
+            $sid = $states['Used'];
+            module_invoke('workflow','execute_transition',$givingcode_node,$sid,null,true);
+            node_save($givingcode_node);
+
+      }
+      $teen_info = user_load($project->uid);
+      profile_load_profile($teen_info);
+      gpapi_userpoint_calculation($teen_info, 'Treasure', $params = array('entity_id' => $node->nid, 'entity_name' => 'project_donation', 'donation_amount' => $node->field_donation_amount[0]['value']));
+      $donation_id = $node->nid;
+
+      $out = "<br /><div class=\"donation-confirmation\">";
+      if($form_state['values']['donation_for'] == 'event') {
+      
+      $out .= "You've chosen to redeem GivingCard number: ".$givingcard_code." and donate \$".number_format($amount,2)." to $name.";
+      }
+      $out .= '</div>';
+
+      $form['response'] = array(
+          '#id' => 'response',
+          '#type' => 'item',
+          '#value' => $out,
+      );
+
+        $user = $logged_in_user;
+        if($user->uid == 0) {
+            drupal_set_message('Your donation has been recieved');
+            drupal_goto(drupal_get_path_alias('node/'.$project_id));
+        }
+        else {
+            drupal_set_message('Your donation has been recieved');
+            drupal_goto("profile/{$user->uid}/donations");
+        }
+}
+    }
+  return $form;
+}
+
+/**
+ * This is called to create the form in each step.
+ * The first time in, form_values is NULL, after that,
+ * interegate the 'step' hidden attribute to determine
+ * where we are.
+ *
+ * Only the last step should create a 'Submit' button as that
+ * will trigger the passion_form_submit method.  By just using
+ * a 'button' for the other steps, only the passion_form_validate
+ * method is invoked.
+ */
+function gp_donation_form($form_state,$project_id=null) {
+
+  if (empty($form_state['storage']['step'])) {
+  // we are coming in without a step, so default to step 1
+    $form_state['storage']['step'] = 1;
+    if (!empty($project_id)) {
+      $form_state['storage']['project_id'] = $project_id;
+    }
+  }
+
+  //demo different fields on different steps
+  switch ($form_state['storage']['step']) {
+    case 1:
+      $form = _gp_donation_form_step1($form_state);
+      $form['next'] = array(
+          '#type' => 'submit',
+          '#weight' => 10,
+          '#value' => t('Donate'));
+      break;
+    case 2:
+      $form = _gp_donation_form_step2($form_state);
+      $form['next'] = array(
+          '#type' => 'submit',
+          '#weight' => 10,
+          '#value' => t('Confirm'));
+      break;
+  }
+
+  return $form;
+}
+/**
+ * This is called to create the form in each step.
+ * The first time in, form_values is NULL, after that,
+ * interegate the 'step' hidden attribute to determine
+ * where we are.
+ *
+ * Only the last step should create a 'Submit' button as that
+ * will trigger the passion_form_submit method.  By just using
+ * a 'button' for the other steps, only the passion_form_validate
+ * method is invoked.
+ */
+function gp_donation_event_form($form_state,$event_id=null) {
+
+  if (empty($form_state['storage']['step'])) {
+  // we are coming in without a step, so default to step 1
+    $form_state['storage']['step'] = 1;
+    if (!empty($event_id)) {
+      $form_state['storage']['event_id'] = $event_id;
+    }
+  }
+
+  //demo different fields on different steps
+  switch ($form_state['storage']['step']) {
+    case 1:
+      $form = _gp_donation_event_form_step1($form_state);
+      $form['next'] = array(
+          '#type' => 'submit',
+          '#weight' => 10,
+          '#value' => t('Donate'));
+      break;
+    case 2:
+      $form = _gp_donation_event_form_step2($form_state);
+      $form['next'] = array(
+          '#type' => 'submit',
+          '#weight' => 10,
+          '#value' => t('Confirm'));
+      break;
+  }
+
+  return $form;
+}
+
+//'#submit' => array('fm_handler_gp_donation_form_submit'),
+/**
+ * This should only be called after the final step.  It is
+ * up to each step to carry the state along in hidden fields
+ * if necessary.
+ */
+function gp_donation_form_submit($form, &$form_state) {
+
+//save the values for the current step into the storage array
+  $form_state['storage']['values'][$form_state['storage']['step']] = $form_state['values'];
+
+  // check the button that was clicked and action the step chagne
+  if ($form_state['clicked_button']['#id']=='edit-previous') {
+    $form_state['storage']['step']--;
+  } elseif ($form_state['clicked_button']['#id']=='edit-next') {
+    $form_state['storage']['step']++;
+  }
+
+  //tell Drupal we are redrawing the same form
+  $form_state['rebuild'] = TRUE;
+}
+/**
+ * This should only be called after the final step.  It is
+ * up to each step to carry the state along in hidden fields
+ * if necessary.
+ */
+function gp_donation_event_form_submit($form, &$form_state) {
+
+//save the values for the current step into the storage array
+  $form_state['storage']['values'][$form_state['storage']['step']] = $form_state['values'];
+
+  // check the button that was clicked and action the step chagne
+  if ($form_state['clicked_button']['#id']=='edit-previous') {
+    $form_state['storage']['step']--;
+  } elseif ($form_state['clicked_button']['#id']=='edit-next') {
+    $form_state['storage']['step']++;
+  }
+
+  //tell Drupal we are redrawing the same form
+  $form_state['rebuild'] = TRUE;
+}
+/**
+ * Our form is it's own page, so this is the hook method
+ * to create the form.
+ */
+function gp_donation_site_page($project_id=null) {
+  
+  return drupal_get_form('gp_donation_form',$project_id);
+}
+/**
+ * Our form is it's own page, so this is the hook method
+ * to create the form.
+ */
+function gp_donation_event_page($event_id=null) {
+  
+  return drupal_get_form('gp_donation_event_form',$event_id);
+}
+
+/**
+ * Our form is it's own page, so this is the hook method
+ * to create the form.
+ */
+function gp_donation_thanks_page($project_id, $donation_id=null) {
+
+    global $user;
+
+    /*
+
+    $node = node_load($donation_id);
+
+    $donor = "donor";
+    if (isset($node->uid) && $node->uid != 0)
+    {
+        $user = user_load($node->uid);
+        $fname = $user->profile_first_name;
+        if (!empty($fname))
+        {
+            $donor = $fname;
+        }
+    }
+*/
+
+
+
+/*    $output .= "Dear {$donor}:<br /><br/>";
+    $output .= "On behalf of GivingPoint, I would like to thank you for your
+                    generous gift of {$node->field_donation[0]['value']} to support
+                    our mission to unleash the passion and energy of young people to
+                    create a better world. <br /><br />
+
+                    Through GivingPoint, you are reaching and motivating a generation of
+                    young people who are looking for innovative technology, tools, and
+                    knowledge to drive social change. With your support, thousands of
+                    teens are finding and fueling their social passion. <br /><br />
+
+                    Together, we can build a world filled with dedicated social innovators
+                    and life-long philanthropists! <br /><br />
+ */
+    if($user->uid == 0) {
+    drupal_set_message('Your donation has been recieved');
+    drupal_goto(drupal_get_path_alias('node/'.$project_id));
+    }
+    else {
+
+  $output = "";
+
+  if ($donation_id != null) {
+    $output = "<p>Thank you!   You have just inspired a teen who is looking for resources to create a more
+                   compassionate world. Together, we can witness the impressive results of concerned young 
+                   citizens improving their community through volunteer service and philanthropy.</p>
+                   <p>&nbsp;</p>
+                   <p>An email confirmation is on its way. </p>
+                   <p>&nbsp;</p>
+                   <p>Your donation ID is {$donation_id}.</p>
+                   <p>&nbsp;</p>
+                   <p>Now teens know someone's on their side.  They know that there is a community of supporters 
+                      who believe in their work to change the world for the better!</p>
+                   <br /> <br /><a href=\"/projects\">Link to projects</a>";
+  }
+  else {
+    $output = "We are grateful for your donation.<br /> <br />An email confirmation is on its way.<br /><br />
+    Your donation ID is {$project_id}. <br /> <br /><a href=\"/projects\">Link to projects</a>";
+  }
+
+  return $output;
+    }
+}
+
+function gp_donation_amount_validator($form, &$form_state) {
+    global $user;
+    //echo "<pre>";
+    
+    if(is_numeric($form_state['values']['amount']) && ($form_state['values']['amount'] != '0')) {
+        $form_state['values']['amount'] = round($form_state['values']['amount'],2);
+    }
+  $amount = $form_state['values']['amount'];
+  $project_id = "";
+
+  if (!empty($form_state['storage']['project_id'])) {
+    $project_id = $form_state['storage']['project_id'];
+  }
+  else {
+    $project_id = $form_state['values']['project'];
+  }
+
+  if (!empty($project_id))
+  {
+    $amount_needed = get_project_donation_amount_needed($project_id);
+    $amount_raised =  get_total_approved_donations($project_id);
+    $short_by = $amount_needed - $amount_raised;
+  }
+  if(($form_state['values']['donation_type'] == 0) || ($user->uid == 1)) {
+if(empty($amount) && ($amount != '0')) {
+    form_set_error('amount', t('Donation Amount field is required. '));
+}
+ elseif((!is_numeric($amount)) || ($amount < 5)) {
+    form_set_error('amount', t('Amount should be a number and more than $5.00. '));
+  }else if (is_numeric($short_by) && ($amount > $short_by)) {
+      form_set_error('amount', t("The amount exceeds the remaining(\${$short_by}) requirement of this project." ));
+    }
+  }
+ 
+}
+
+function gp_event_donation_amount_validator($form, &$form_state) {
+    global $user;
+    //echo "<pre>";
+    
+    if(is_numeric($form_state['values']['amount']) && ($form_state['values']['amount'] != '0')) {
+        $form_state['values']['amount'] = round($form_state['values']['amount'],2);
+    }
+  $amount = $form_state['values']['amount'];
+   if($form_state['values']['pledge_amount'] ==''){
+ if($amount < 1) {
+    form_set_error('amount', t('Amount should be a number and minimum donation is $1.00. '));
+  }else if (is_numeric($short_by) && ($amount > $short_by)) {
+      form_set_error('amount', t("The amount exceeds the remaining(\${$short_by}) requirement of this project." ));
+    }
+    }
+  }
+ 
+
+function gp_donation_pledge_amount_validator($form, &$form_state) {
+    global $user;
+    if(is_numeric($form_state['values']['pledge_amount']) && ($form_state['values']['pledge_amount'] != '0')) {
+        $form_state['values']['pledge_amount'] = round($form_state['values']['pledge_amount'],2);
+    }
+  $amount = $form_state['values']['pledge_amount'];
+  $project_id = "";
+
+  if (!empty($form_state['storage']['project_id'])) {
+    $project_id = $form_state['storage']['project_id'];
+  }
+  else {
+    $project_id = $form_state['values']['project'];
+  }
+
+  if (!empty($project_id))
+  {
+    $amount_needed = get_project_donation_amount_needed($project_id);
+    $amount_raised =  get_total_approved_donations($project_id);
+    $short_by = $amount_needed - $amount_raised;
+  }
+  if(($form_state['values']['donation_type'] < 1) || ($user->uid == 1)) {
+if($form_state['values']['amount'] ==''){
+if(empty($amount) && ($amount != '0')) {
+    form_set_error('pledge_amount', t('One time Donation field is required. '));
+}
+ elseif((!is_numeric($amount)) || ($amount < 1)) {
+    form_set_error('pledge_amount', t('Pledge amount should be $1.00 or more. '));
+  }else if (is_numeric($short_by) && ($amount > $short_by)) {
+      form_set_error('pledge_amount', t("The pledge amount exceeds the remaining(\${$short_by}) requirement of this project." ));
+    }
+    }
+  }
+}
+
+/**
+ * Validate function for givingcodes.
+ * @param <type> $form
+ * @param <type> $form_state
+ */
+function gp_donation_givingcode_validator($form,&$form_state) {
+    global $user;
+
+  //  $db = mysql_connect('glicklabs.com', 'abhi', '23wesd');
+ //   mysql_select_db('givingpoint2');
+ if($form_state['values']['donation_type'] == 2){
+    if(!empty($form_state['values']['givingcard_code'])) {
+        $sql = "select n.nid as nid, gp_code.field_givingcode_value as givingcode, gp_code.field_givingcode_amount_value as amount, ws.state as workflow_state from node n
+                inner join content_type_givingpoint_code gp_code on n.nid = gp_code.nid
+                inner join workflow_node wn on n.nid = wn.nid
+                inner join workflow_states ws on wn.sid = ws.sid
+                inner join workflows w on ws.wid = w.wid
+                where n.type = 'givingpoint_code' and w.name = 'Promote GivingCodes' and gp_code.field_givingcode_value = '{$form_state['values']['givingcard_code']}' ";
+
+        $givingcode_info = db_fetch_object(db_query($sql));
+       if(empty($givingcode_info)) {
+            form_set_error('givingcard_code', t("You have entered an invalid Giving Card code." ));
+        }
+       elseif(!empty($givingcode_info)) {
+           if($givingcode_info->workflow_state == 'Used') {
+            form_set_error('givingcard_code', t("This Giving Card has already been used." ));
+           }
+       }
+
+       // mysql_close();
+        $amount = round($givingcode_info->amount,2);
+        $project_id = "";
+
+        if (!empty($form_state['storage']['project_id'])) {
+        $project_id = $form_state['storage']['project_id'];
+        }
+        else {
+        $project_id = $form_state['values']['project'];
+        }
+
+        if (!empty($project_id))
+        {
+        $amount_needed = get_project_donation_amount_needed($project_id);
+        $amount_raised =  get_total_approved_donations($project_id);
+        $short_by = $amount_needed - $amount_raised;
+        }
+
+         if (is_numeric($short_by) && ($amount > $short_by)) {
+          form_set_error('givingcard_code', t("The amount o Giving Card exceeds the remaining(\${$short_by}) requirement of this project. Please provide some other givingcode if you have or choose to donate via paypal." ));
+        }
+    }
+    elseif(empty($form_state['values']['givingcard_code']) && ($form_state['values']['donation_type'] == 0)) {
+        form_set_error('givingcard_code', t("Enter the Giving Card field is required." ));
+    }
+
+  }  
+}
+function gp_giving_donation_amount_validator($form, &$form_state) {
+  $form_state['values']['amount'] = round($form_state['values']['amount'],2);
+  $amount = $form_state['values']['amount'];
+  if((!is_numeric($amount)) || ($amount < 5)) {
+    form_set_error('text', t('Amount should be a number and more than $5.00. '));
+  }
+}
+
+
+/**
+ * Builds the form input fields for the general
+ * information section.
+ *
+ * @TODO:  determine which of these are required
+ */
+function _gp_giving_donation_form_step1($form_state) {
+  $form['amount'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['amount'],$form_state['values']['amount']),
+      '#title' => t('Donation Amount'),
+      '#maxlength' => 10,
+      '#size'      => 10,
+      '#element_validate' => array('gp_giving_donation_amount_validator'),
+      '#required' => TRUE,
+      '#weight' => -7,
+  );
+
+  $form['message'] = array(
+      '#type' => 'textarea',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['message'],$form_state['values']['message']),
+      '#title' => t('Personal Message'),
+      '#rows' => 4,
+      '#required' => False,
+      '#weight' => 0
+  );
+
+  $form['is_anonymous'] = array(
+      '#type' => 'checkbox',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['is_anonymous'],$form_state['values']['message']),
+      '#title' => t('Make my donation anonymous'),
+  );
+
+  return $form;
+}
+
+/**
+ * The initial collection of causes.
+ */
+function _gp_giving_donation_form_step2($form_state) {
+  global $user;
+  global $_lm_paypal_debug;
+  global $_lm_paypal_host;
+  global $_lm_paypal_business;
+  global $_lm_paypal_donations_thanks;
+
+  _lm_paypal_donations_ini();
+  $ccc = 'USD';
+
+  $amount = $form_state['storage']['values'][1]['amount'];
+  $message = $form_state['storage']['values'][1]['message'];
+
+  //Create a donation node and attach it here
+  $node = new StdClass();
+
+  $node->type = 'givingpoint_donation';
+  $node->status = 1;
+  if (!empty($user->uid) && ($user->uid != 0)) {
+    $node->uid = $user->uid;
+  }
+  if (!empty($form_state['storage']['values'][1]['is_anonymous'])
+      && $form_state['storage']['values'][1]['is_anonymous'] == 1) {
+    $node->field_is_anonymous[0]['value'] = 1;
+  }
+  $node->title = "\$".number_format($amount,2)." donation to GivingPoint";
+  $node->body = $message;
+  $node->field_donation_amount[0]['value'] = $amount;
+  node_submit($node);
+  node_save($node);
+  $donation_id = $node->nid;
+
+  $out = "<br /><div class=\"donation-confirmation\">";
+  $out .= "You've chosen to donate \$".number_format($amount,2).". On confirming, you'll be redirected to Paypal to complete the payment process.";
+  $out .= '</div>';
+
+  $form['response'] = array(
+      '#id' => 'response',
+      '#type' => 'item',
+      '#value' => $out,
+  );
+
+  //  $ret_url = "http://www.mygivingpoint.org/donation/thanks/{$donation_id}";
+  $ret_url = url("donation/thanks/{$donation_id}",array('absolute'=>true));
+  $biz = check_plain($_lm_paypal_business);
+  if ($ret_url == '' || is_null($ret_url)) {
+    $ret_url = $_lm_paypal_donations_thanks;
+  }
+  if (variable_get('clean_url', 0)) {
+    $return_url = url(check_url($ret_url), array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  else {
+    $return_url = url(NULL, array('query' => 'q='. check_url($ret_url), 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  $notify_url = url('lm_paypal/ipn', array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  $form['cmd'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => '_xclick');
+  $form['business'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $biz);
+  $form['item_name'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => 'Donation to Givingpoint');
+  $form['item_number'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $donation_id);
+  $form['notify_url'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $notify_url);
+  $form['amount'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $amount,
+      "#size" => '20');
+  $form['no_shipping'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['return'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $return_url);
+  $form['currency_code'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $ccc);
+  $form['no_note'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['custom'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $user->uid );
+
+  $form['#action'] = "https://$_lm_paypal_host/cgi-bin/webscr";
+
+
+  return $form;
+}
+
+/**
+ * This is called to create the form in each step.
+ * The first time in, form_values is NULL, after that,
+ * interegate the 'step' hidden attribute to determine
+ * where we are.
+ *
+ * Only the last step should create a 'Submit' button as that
+ * will trigger the passion_form_submit method.  By just using
+ * a 'button' for the other steps, only the passion_form_validate
+ * method is invoked.
+ */
+function gp_giving_donation_form($form_state) {
+
+  if (empty($form_state['storage']['step'])) {
+  // we are coming in without a step, so default to step 1
+    $form_state['storage']['step'] = 1;
+  }
+
+  //demo different fields on different steps
+  switch ($form_state['storage']['step']) {
+    case 1:
+      $form = _gp_giving_donation_form_step1($form_state);
+
+      $form['next'] = array(
+          '#type' => 'submit',
+          '#value' => t('Donate'));
+      break;
+    case 2:
+      $form = _gp_giving_donation_form_step2($form_state);
+      $form['next'] = array(
+          '#type' => 'submit',
+          '#value' => t('Confirm'));
+      break;
+  }
+
+  return $form;
+}
+
+/**
+ * This should only be called after the final step.  It is
+ * up to each step to carry the state along in hidden fields
+ * if necessary.
+ */
+function gp_giving_donation_form_submit($form, &$form_state) {
+
+//save the values for the current step into the storage array
+  $form_state['storage']['values'][$form_state['storage']['step']] = $form_state['values'];
+
+  // check the button that was clicked and action the step chagne
+  if ($form_state['clicked_button']['#id']=='edit-previous') {
+    $form_state['storage']['step']--;
+  } elseif ($form_state['clicked_button']['#id']=='edit-next') {
+    $form_state['storage']['step']++;
+  }
+
+  //tell Drupal we are redrawing the same form
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Our form is it's own page, so this is the hook method
+ * to create the form.
+ */
+function gp_giving_donation_site_page() {
+  return drupal_get_form('gp_giving_donation_form');
+}

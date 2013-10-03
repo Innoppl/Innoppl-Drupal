@@ -1,0 +1,6 @@
+;$Id$
+name=Givingcodes processing
+description="This module processes the givingcodes in GP"
+package=givingpoint
+version = "6.x-0.1"
+core = 6.x

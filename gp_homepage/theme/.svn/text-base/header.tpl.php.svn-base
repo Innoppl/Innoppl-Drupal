@@ -1,0 +1,62 @@
+<!--
+<div class="float-r top-menu">
+    <ul>
+        <li class="first">&nbsp;</li>
+        <li class="first-elevate"><a href="/about">ABOUT</a></li>
+        <li><a href="/parents">FOR PARENTS</a></li>
+        <li><a href="/teachers">FOR TEACHERS</a></li>
+        <li><a href="/nonprofits">FOR NON-PROFITS</a></li>
+        <li class="last">
+            <span class="login"><a href="/user">login</a></span>
+            <span class="separator">|</span>
+            <span class="join"><a href="/user/register"> &nbsp;join </a></span>
+        </li>
+    </ul>
+</div> -->
+<?php print $sections['top_menu']; ?>
+
+<div class="logo">
+    <a href="<?php print url(); ?>" title="<?php print t('GivingPoint'); ?>" rel="home" id="logo">
+        <img src="<?php print theme_get_setting('logo'); ?>" alt="<?php print t('GivingPoint'); ?>" />
+    </a>
+</div>
+<div class="search-box"> <?php echo $sections['search_box'];?> </div>
+
+<?php if(!empty($nav_tree['pri_nav'])):?>
+<div class="hover-menu clear sharp-border">
+    <ul>
+    <?php foreach($nav_tree['pri_nav'] as $term):
+            if(drupal_get_path_alias("nav/".$term->tid) == 'nav/'.$term->tid):?>
+        <li>
+            <a href="<?php echo base_path(). "{$term->name}";?>"><span class='top'><?php echo $term->fields['display_name'];?></span><span class='bottom'><?php echo $term->fields['tagline'];?></span></a>
+        </li>
+            <?php else :?>
+        <li>
+            <a href="<?php echo base_path(). drupal_get_path_alias("nav/".$term->tid);?>"><span class='top'><?php echo $term->fields['display_name'];?></span><span class='bottom'><?php echo $term->fields['tagline'];?></span></a>
+        </li>
+        <?php endif; ?>
+    <?php endforeach; ?>
+    </ul>
+    <div class="clear"></div>
+</div>
+<?php endif;?>
+
+<?php if(!empty($nav_tree['sec_nav'])):?>
+<div class="hover-secondary-menu clear sharp-border">
+    <ul>
+    <?php foreach($nav_tree['sec_nav'] as $term): ?>
+    <?php if(($term->name != 'Giving Guidance') && ($term->name != 'Volunteer Guidance') && ($term->name != "Today's Hot Issues") && ($term->name != "Find Your Passion")): ?>
+        <li>
+            <a class="head-first" href="<?php echo drupal_get_path_alias("nav/".$term->tid);?>"><?php echo $term->name;?></a>
+        </li>
+        <?php else: ?>
+        <?php $path = strtolower(str_replace(array(" ","'"), array("-",""), $term->name));?>
+        <li>
+            <a class="head-first" href="<?php echo "/causes/{$path}";?>"><?php echo $term->name;?></a>
+        </li> 
+        <?php endif; ?>
+    <?php endforeach; ?>
+    </ul>
+</div>
+<?php endif;?>
+

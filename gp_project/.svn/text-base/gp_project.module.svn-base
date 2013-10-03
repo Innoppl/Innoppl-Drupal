@@ -1,0 +1,239 @@
+<?php
+/* 
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+/**
+ * This function implements the _init hook. It loads the inc files which has
+ * the code for implementing various elements on the inner pages.
+ */
+function gp_project_init() {
+    module_load_include('inc', 'gp_project', 'gp_project_func');
+    module_load_include('inc', 'gp_project', 'gp_project_menu');
+    module_load_include('inc', 'gp_project', 'gp_project_util');
+    module_load_include('inc', 'gp_project', 'gp_project_form');
+}
+
+/**
+ *
+ * @return <type> 
+ */
+function gp_project_theme() {
+    $path = drupal_get_path('module', 'gp_project');
+    $base = array(
+        'path' => "$path/theme",
+    );
+    return array(
+        'project_filter_box' => $base + array(
+            'template' => 'project-filter-box',
+            'arguments' => array('sections'=>array(),),
+        ),
+        'usergrid' => $base + array(
+            'template' => 'usergrid',
+            'arguments' => array('table'=>array(),),
+        ),
+        'projectuserlist' => $base + array(
+            'template' => 'projectuserlist',
+            'arguments' => array('table'=>array(),'user_type'=>null, 'project_name'=>null),
+        ),
+        'user_donation_det' => $base + array(
+            'template' => 'user-donation-det',
+            'arguments' => array('section' => array(),'project_assoc'=>array()),
+        ),
+        'givingpoint_donation_det' => $base + array(
+            'template' => 'givingpoint-donation-det',
+            'arguments' => array('section' => array()),
+        ),
+        'share_project' => $base + array(
+            'template' => 'share-project',
+            'arguments' => array('proj_title' => array(),'proj_path'=>array(),'facebook_link'=>array(),'email_link'=>array(),'twitter_link'=>array(),),
+        ),
+        'project_photos_grid' => $base + array(
+            'template' => 'project-photos-grid',
+            'arguments' => array('sections' => array(),'heading'=>array(),),
+        ),
+
+    );
+}
+
+/**
+ * Implementation of hook_nodeapi. It is used to sync up necesarry fields in project group.
+ * @global <type> $user
+ * @param <type> $node
+ * @param <type> $op
+ * @param <type> $teaser
+ * @param <type> $page
+ * 
+ */
+function gp_project_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+    //echo "<pre>$op";//print_r($node);
+    global $user;
+    switch ($op) { 
+        case 'presave' :
+        case 'insert' :
+
+            if($node->type == 'contribution') {
+                watchdog('contribution_tests', 'came in rule');
+                
+                $user_info = user_load($node->uid);
+                $already_get_points = module_invoke('gpapi','get_userpoint_entry', $node->nid, 'node');
+                
+                if(isset($node->workflow) && empty($already_get_points)) {
+                    $workflow_state = workflow_get_state($node->workflow);                       
+                    if($workflow_state['state'] == 'Approved') {
+                        $contrib_type = $node->field_contrib_type[0]['value'];
+
+                    if($contrib_type == 'Time') {
+                        module_invoke('gpapi','userpoint_calculation',$user_info,'time',array('entity_id' => $node->nid, 'entity_type' => 'node'),$node->field_contrib_hours[0]['value']);
+                    }
+                    elseif($contrib_type == 'Talent') {
+                        module_invoke('gpapi','userpoint_calculation',$user_info,'talent',array('entity_id' => $node->nid, 'entity_type' => 'node'),$node->field_contrib_hours[0]['value']);
+                    }
+                    }
+                }
+
+            }
+               break;
+           case 'alter':
+               if($node->type == 'project_donation') {                   
+                   $project_assoc = og_get_node_groups($node);
+                   $donation_det = theme('user_donation_det',$node,$project_assoc);                   
+                   $node->body = $donation_det;
+                   
+               }else if($node->type == 'givingpoint_donation') {
+                   $donation_det = theme('givingpoint_donation_det',$node);
+                   $node->body = $donation_det;
+
+               }
+               break;
+    
+}
+}
+
+/**
+ * Implementation of hook_menu
+ *
+ */
+function gp_project_menu() {
+    $items['donorlist/%'] = array(
+        'title' => 'All Donors/Supporters',
+        'page callback' => 'gp_project_mc_donorlist',
+        'page arguments'=> array(1),
+        'access arguments' => array('access content'),
+        'type' => MENU_CALLBACK,
+    );
+    $items['volunteerlist/%'] = array(
+        'title' => 'All Volunteers',
+        'page callback' => 'gp_project_mc_volunteerlist',
+        'page arguments'=> array(1),
+        'access arguments' => array('access content'),
+        'type' => MENU_CALLBACK,
+    );
+    $items['share-this-project/%'] = array(
+        'title' => 'Share This Project',
+        'page callback' => 'gp_project_mc_share_project',
+        'page arguments'=> array(1),
+        'access arguments' => array('access content'),
+        'type' => MENU_CALLBACK,
+    );
+    return $items;
+}
+
+
+/**
+ * Implementation of hook_pathauto() for causes pages path aliases.
+ */
+function gp_project_pathauto($op) {
+  switch ($op) {
+    case 'settings':
+      $settings = array();
+      $settings['module'] = 'gp_project';
+      $settings['token_type'] = 'taxonomy';
+      $settings['groupheader'] = t('Causes pages path settings');
+      $settings['patterndescr'] = t('Pattern for causes pages paths');
+      $settings['patterndefault'] = t('[catpath-raw]');
+      $patterns = token_get_list('taxonomy');
+      foreach ($patterns as $type => $pattern_set) {
+        if ($type != 'global') {
+          foreach ($pattern_set as $pattern => $description) {
+            $settings['placeholders']['['. $pattern .']'] = $description;
+          }
+        }
+      }
+
+      $settings['bulkname'] = t('Bulk generate aliases for causes pages that are not aliased');
+      $settings['bulkdescr'] = t('Generate aliases for all existing causes pages which do not already have aliases.');
+      return (object) $settings;
+    default:
+      break;
+  }
+}
+
+
+/**
+ * Bulk generate aliases for all causes pages without aliases.
+ */
+function gp_project_pathauto_bulkupdate() {
+  $query = "SELECT v.vid, v.name , td.tid, td.name, ua.dst, ua.src FROM term_data td
+            LEFT JOIN vocabulary v ON td.vid = v.vid
+            LEFT JOIN url_alias ua ON CONCAT('causes/', CAST(td.tid AS CHAR)) = ua.src
+            WHERE v.name = 'Project Categories'
+            AND ua.src IS NULL";
+  $result = db_query_range($query, 0, variable_get('pathauto_max_bulk_update', 50));
+
+  $count = 0;
+  $placeholders = array();
+  while ($term = db_fetch_object($result)) {
+    $placeholders = pathauto_get_placeholders('taxonomy', $term);
+    $src = 'causes/'. $term->tid;
+    if ($alias = pathauto_create_alias('gp_project', 'bulkupdate', $placeholders, $src, $term->tid)) {
+      $count++;
+    }
+  }
+
+  drupal_set_message(format_plural($count,
+    'Bulk generation of causes pages completed, one alias generated.',
+    'Bulk generation of causes pages completed, @count aliases generated.'));
+}
+
+/**
+ * Implementation of hook_cron()
+ */
+function gp_project_cron() {
+    global $user;
+    
+$db_resultset = db_query("select node.nid, project.field_project_album_nid_nid as album_nid from node node
+                            left join content_type_project project on node.nid = project.nid
+                            where node.type = '%s' and project.field_project_album_nid_nid IS NULL",'project');
+    while($row = db_fetch_object($db_resultset)) {
+
+        $project_info = new stdClass();
+        $author = new stdClass();
+        
+        $project_info = node_load($row->nid);
+        $author = user_load($project_info->uid);
+         $logged_in_user = $user;
+         $user = $author;
+         $project_album_node = new stdClass();
+         $project_album_node->type = 'project_album';
+         $project_album_node->title = "{$project_info->title} project album";
+         $project_album_node->uid =  $user->uid;
+         $project_album_node->status = 1;
+         $project_album_node->comment = 0;
+        $project_album_node->field_project_node[0]['nid'] =$project_info->nid;
+
+//echo "<pre>"; print_r($donation_node); exit;
+
+         node_submit($project_album_node);
+          node_save($project_album_node);
+
+          echo "Node created nid :{$project_album_node->nid} for project {$project_info->title} <br />" ;
+
+       $project_album_nid = $project_album_node->nid;
+ $project_info->field_project_album_nid[0]['nid'] = $project_album_nid;
+         node_save($project_info);
+         echo "Album id : ".$project_info->field_project_album_nid[0]['nid']."<br />";
+        $user = $logged_in_user;
+   }
+}

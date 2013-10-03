@@ -1,0 +1,6 @@
+name = GivingPoint Project
+description =  Module contains the functionality of project part in givingpoint.
+package = givingpoint
+version = "6.x-0.1"
+;dependencies[] =
+core = 6.x

@@ -1,0 +1,72 @@
+/* 
+    Document   : gm_homepage
+    Created on : Jun 9, 2009, 11:47:08 AM
+    Author     : sudhir <sudhir@axelerant.com>
+    Description:
+        This file contains CSS styles for homepage of mygivingpoint.org.
+        Styles of site-wide header and footer are also defined here.
+*/
+.home-page-block h2
+{color:#83B3CA;font-family:'Verdana',Arial,TimesNewRoman;font-size:18px;text-align:center;padding:2px 47px;text-transform:lowercase;
+margin:10px 0;
+}
+.sticker {text-align:center;}
+.gp-homepage-main{padding:3px 0px;}
+.gp-homepage-description{width:386px;}
+.gp-homepage-description .description{margin:0 4px;}
+
+.gp-homepage-slideshow, .gp-homepage-description {padding:6px 0 0 10px;font-size:13px;margin-bottom:3px;}
+.gp-homepage-level1{padding:0 3px;}
+.gp-homepage-level2{background:#F5F5F5;height:312px;border-color:#E7E7E7;border-style:solid;border-width:1px 0;padding:2px 7px 0 20px;}
+.home-page-block{width:280px;height:312px;overflow:hidden;display:inline;float:left;padding:10px;margin:7px 6px;background:#FFFFFF;
+               border:2px solid #E7E7E7; -moz-border-radius:14px;-webkit-border-radius:14px; -khtml-border-radius:14px;
+      -moz-box-shadow:1px 1px 2px #E7E7E7;-webkit-box-shadow:1px 1px 2px #E7E7E7;box-shadow:1px 1px 2px #E7E7E7;
+      overflow:hidden !important;
+    }
+	
+.home-page-block .givingcode-card {background:transparent url(/sites/all/themes/gptheme/images/givingcard.png) no-repeat 0 0;
+padding:25px 0px 3px 11px;
+width:259px;height:214px;text-shadow:1px 1px 2px #c1c1c1;
+}
+
+.home-page-block .givingcode-card p{width:auto;}
+
+.gp-homepage-middle p{padding:0 3px;}
+.gp-homepage-left p{padding:0 3px 12px 0;}
+.gp-homepage-right  .purchase a {
+background:transparent url(/sites/all/themes/gptheme/images/btn_purchase.png) no-repeat scroll 0 0;
+display:block;
+height:33px;
+left:0;
+margin:0 auto 0;
+position:relative;
+text-indent:-9999px;
+width:146px;
+
+}
+.gp-homepage-middle h2 
+{background:transparent url(/sites/all/themes/gptheme/images/create-civic.png) no-repeat; padding-bottom:44px;
+padding-top:10px;}
+
+.gp-homepage-middle  a {display:block;}
+
+.home-page-newsletter .desc {font-size:13px;font-weight:bold;margin:6px 0;color:#6B6B6B;}
+.home-page-newsletter h2{margin:3px 0;}
+.gp-homepage-right td{vertical-align:top;}
+.gp-homepage-left h2{
+background:transparent url(/sites/all/themes/gptheme/images/giving-point-news.png) no-repeat;
+padding-bottom:19px;
+padding-top:34px;
+}
+.gp-homepage-left p a{display:block;color:#6F6F6F;text-decoration:none; font-size:13px; font-weight:bold;}
+.gp-homepage-left p a:hover{text-decoration:underline;}
+.gp-homepage-description p {margin:5px 0;}
+.gp-homepage-right table {margin-left:47px;}
+#block-gp_blocks-gp_newsletter #edit-email-wrapper {left:4px;position:relative;width:150px;}
+
+.donate-button-gp {display:block;background: transparent url(/sites/all/themes/gptheme/images/donate.jpg) top center no-repeat;text-align:center;
+                  font-family:Verdana,Arial,Georgia;color:white;font-size:18px;font-weight:bold;margin:8px 41px;padding:10px 32px;}
+
+.donate-button-gp:hover {background-position:center -52px;text-decoration:none;}
+.donate-button-gp:active {background-position:center -103px;color:#F5F5F5;}
+.decore {border:solid #c1c1c1; border-width:1px 0;background:url(/sites/all/themes/gptheme/images/bg-bar-white.png) repeat-x 0 1px;}

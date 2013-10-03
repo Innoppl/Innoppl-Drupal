@@ -1,0 +1,38 @@
+<div class="userlist">
+<div class="title">
+    <?php if($user_type == 'donor'):?>
+    <h2><?php echo $project_name?>'s donors/supporters</h2>
+    <?php endif;?>
+    <?php if($user_type == 'volunteer'):?>
+    <h2><?php echo $project_name?>'s volunteers</h2>
+    <?php endif;?>
+</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Picture</th>
+                <th>Public Name</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php 
+            $count = 0;
+            foreach($table as $user):
+            $zebra = ($count % 2) ? 'odd' : 'even';
+            ?>
+            <tr class = '<?php echo $zebra; ?>'>
+                <td><?php echo l(theme('imagecache', '56x56', gpapi_get_userpic($user->uid)), "profile/".$user->uid, array('html'=>TRUE));?></td>
+                <?php if(in_array('Givingpoint Donor',$user->roles)):
+                        $project_info = node_load(arg(1));
+                ?>
+                <td><?php echo l('GivingPoint Grant', "profile/".$project_info->uid, array('html'=>TRUE));?></td>
+                <?php else: ?>
+                <td><?php echo l(gpapi_displayname($user), "profile/".$user->uid, array('html'=>TRUE));?></td>
+                <?php endif;?>
+            </tr>
+            <?php 
+            $count++;
+            endforeach;?>
+        </tbody>
+    </table>        
+</div>

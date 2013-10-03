@@ -1,0 +1,6 @@
+;$Id$
+name=Donation Integration with Paypal
+description="This module allows integration of donations with paypal"
+package=givingpoint
+version = "6.x-0.1"
+core = 6.x

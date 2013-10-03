@@ -1,0 +1,7 @@
+name = GivingPoint Blogs
+description =  Module to implement the GivingPoint blogs using the blog module.
+package = givingpoint
+version = "6.x-0.1"
+dependencies[] = gpapi
+dependencies[] = blog
+core = 6.x

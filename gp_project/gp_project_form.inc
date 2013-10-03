@@ -1,0 +1,380 @@
+<?php
+/*
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+/**
+ *
+ * @param <type> $form_id
+ * @return <type>
+ *
+ */
+function filter_projects_form($form_id) {
+
+        $result_set = db_query("select td.tid as term_id, td.name as term_name from term_data td
+                                Left join vocabulary voc on td.vid = voc.vid
+                                where voc.name = '%s'",'US States');
+
+            $state_array[''] = "--Please Choose--";
+        while($row = db_fetch_array($result_set)) {
+            $state_array[$row['term_id']] = $row['term_name'];
+        }
+
+      $search_type = _get_search_filter_type();
+
+        $form['state'] = array(
+                                '#title' => t('State'),
+                                '#type' => 'select',
+                                '#options' => $state_array,
+                                '#default_value' => isset($_REQUEST['state'])?$_REQUEST['state']:'',
+
+        );
+        
+                $form['city'] = array(
+                                '#title' => t('City'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['city'])?$_REQUEST['city']:'',
+
+        );
+
+
+         $form['school'] = array(
+                                '#title' => t('School'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['school'])?$_REQUEST['school']:'',
+
+        );
+
+
+         $form['organization'] = array(
+                                '#title' => t('Nonprofit'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['organization'])?$_REQUEST['organization']:'',
+                                '#size' => '25',
+
+        );
+
+        $form['author'] = array(
+                                '#title' => t('Student Email Address'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['author'])?$_REQUEST['author']:'',
+
+        );
+        
+        $form['name'] = array(
+                                '#title' => t('Student First Name'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['name'])?$_REQUEST['name']:'',
+                                '#size' => '25',
+
+        );
+
+
+        
+        $form['from_date'] = array(
+                                '#title' => t('Date From'),
+                                '#type' => 'date_popup',
+                                '#date_format' =>  'm/d/Y',
+                                '#default_value' => isset($_REQUEST['from_date'])?$_REQUEST['from_date']:'',
+                                '#size' => '25',
+
+        );
+
+        $form['to_date'] = array(
+                                '#title' => t('Date To'),
+                                '#type' => 'date_popup',
+                                '#date_format' =>  'm/d/Y',
+                                '#default_value' => isset($_REQUEST['to_date'])?$_REQUEST['to_date']:'',
+                                '#size' => '25',
+
+        );
+
+
+
+        $form['search_type'] = array(
+                                '#title' => t(''),
+                                '#type' => 'hidden',
+                                '#default_value' => $search_type,
+                                '#size' => '25',
+
+        );
+
+          $form['submit'] = array(
+            '#type' => 'submit',
+            '#value' => t('Submit'),
+            '#wight' => '-25',
+          );
+
+          return $form;
+
+
+}
+
+/**
+ *
+ * @param <type> $form_id
+ * @param <type> $form_values
+ *
+ */
+function filter_projects_form_submit($form_id,$form_values) {
+
+    $query_string = "";
+    
+    if(!empty($form_values['values']['state'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "state={$form_values['values']['state']}";
+    }
+    if(!empty($form_values['values']['city'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "city={$form_values['values']['city']}";
+    }
+    if(!empty($form_values['values']['school'])) {
+		if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "school={$form_values['values']['school']}";
+    }
+    if(!empty($form_values['values']['author'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "author={$form_values['values']['author']}";
+    }
+    if(!empty($form_values['values']['name'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "name={$form_values['values']['name']}";
+    }
+    if(!empty($form_values['values']['from_date']) ) {
+        $date_arr = explode(' ', $form_values['values']['from_date']);
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "from_date={$date_arr[0]}";
+    }
+    if(!empty($form_values['values']['to_date']) ) {
+        $date_arr = explode(' ', $form_values['values']['to_date']);
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "to_date={$date_arr[0]}";
+    }
+    if(!empty($form_values['values']['organization'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "organization={$form_values['values']['organization']}";
+    }
+//echo $query_string;
+   if($form_values['values']['search_type'] == 'blog') {
+        drupal_goto('stories',$query_string);
+   }
+   if($form_values['values']['search_type'] == 'project') {
+        drupal_goto('projects',$query_string);
+   }
+    if($form_values['values']['search_type'] == 'event') {
+        drupal_goto('events',$query_string);
+   }
+   else {
+   drupal_goto($_REQUEST['q'],$query_string);
+   
+   }
+   
+}
+
+/**
+ *
+ * @param <type> $form_id
+ * @return <type>
+ *
+ */
+function filter_events_form($form_id) {
+
+        $result_set = db_query("select td.tid as term_id, td.name as term_name from term_data td
+                                Left join vocabulary voc on td.vid = voc.vid
+                                where voc.name = '%s'",'US States');
+
+            $state_array[''] = "--Please Choose--";
+        while($row = db_fetch_array($result_set)) {
+            $state_array[$row['term_id']] = $row['term_name'];
+        }
+
+      $search_type = _get_search_filter_type();
+
+        $form['event_name'] = array(
+                                '#title' => t('Event Name'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['event_name'])?$_REQUEST['event_name']:'',
+				'#size' => '25',
+        );
+        
+        $form['state'] = array(
+                                '#title' => t('State'),
+                                '#type' => 'select',
+                                '#options' => $state_array,
+                                '#default_value' => isset($_REQUEST['state'])?$_REQUEST['state']:'',
+
+        );
+        
+                $form['city'] = array(
+                                '#title' => t('City'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['city'])?$_REQUEST['city']:'',
+				'#size' => '25',
+        );
+
+
+         $form['school'] = array(
+                                '#title' => t('School'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['school'])?$_REQUEST['school']:'',
+				'#size' => '25',
+        );
+
+
+         $form['organization'] = array(
+                                '#title' => t('Nonprofit'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['organization'])?$_REQUEST['organization']:'',
+                                '#size' => '25',
+
+        );
+
+        $form['author'] = array(
+                                '#title' => t('Student Email Address'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['author'])?$_REQUEST['author']:'',
+				'#size' => '25',
+        );
+        
+        $form['name'] = array(
+                                '#title' => t('Student First Name'),
+                                '#type' => 'textfield',
+                                '#default_value' => isset($_REQUEST['name'])?$_REQUEST['name']:'',
+                                '#size' => '25',
+
+        );
+
+
+        
+        $form['from_date'] = array(
+                                '#title' => t('Date From'),
+                                '#type' => 'date_popup',
+                                '#date_format' =>  'm/d/Y',
+                                '#default_value' => isset($_REQUEST['from_date'])?$_REQUEST['from_date']:'',
+                                '#size' => '25',
+
+        );
+
+        $form['to_date'] = array(
+                                '#title' => t('Date To'),
+                                '#type' => 'date_popup',
+                                '#date_format' =>  'm/d/Y',
+                                '#default_value' => isset($_REQUEST['to_date'])?$_REQUEST['to_date']:'',
+                                '#size' => '25',
+
+        );
+
+
+
+        $form['search_type'] = array(
+                                '#title' => t(''),
+                                '#type' => 'hidden',
+                                '#default_value' => $search_type,
+                                '#size' => '25',
+
+        );
+
+          $form['submit'] = array(
+            '#type' => 'submit',
+            '#value' => t('Submit'),
+            '#wight' => '-25',
+          );
+
+          return $form;
+
+
+}
+
+function filter_events_form_submit($form_id,$form_values) {
+
+    $query_string = "";
+    
+    if(!empty($form_values['values']['event_name'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "event_name={$form_values['values']['event_name']}";
+    }
+    if(!empty($form_values['values']['state'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "state={$form_values['values']['state']}";
+    }
+    if(!empty($form_values['values']['city'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "city={$form_values['values']['city']}";
+    }
+    if(!empty($form_values['values']['school'])) {
+		if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "school={$form_values['values']['school']}";
+    }
+    if(!empty($form_values['values']['author'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "author={$form_values['values']['author']}";
+    }
+    if(!empty($form_values['values']['name'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "name={$form_values['values']['name']}";
+    }
+    if(!empty($form_values['values']['from_date']) ) {
+        $date_arr = explode(' ', $form_values['values']['from_date']);
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "from_date={$date_arr[0]}";
+    }
+    if(!empty($form_values['values']['to_date']) ) {
+        $date_arr = explode(' ', $form_values['values']['to_date']);
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "to_date={$date_arr[0]}";
+    }
+    if(!empty($form_values['values']['organization'])) {
+        if(!empty($query_string)) {
+            $query_string .= "&";
+        }
+        $query_string .= "organization={$form_values['values']['organization']}";
+    }
+//echo $query_string;
+   if($form_values['values']['search_type'] == 'blog') {
+        drupal_goto('stories',$query_string);
+   }
+   if($form_values['values']['search_type'] == 'project') {
+        drupal_goto('projects',$query_string);
+   }
+    if($form_values['values']['search_type'] == 'event') {
+        drupal_goto('events',$query_string);
+   }
+   else {
+   drupal_goto($_REQUEST['q'],$query_string);
+   
+   }
+   
+}

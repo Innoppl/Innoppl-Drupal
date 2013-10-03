@@ -1,0 +1,161 @@
+<?php
+/**
+ * This file will conatins the various functions used to render diffent sections of the homepage.
+ *
+ * @package givingpoint_package
+ * @subpackage gp_homepage
+ *
+ * @author aradhana <aradhana@axelerant.com>
+ * @category module
+ */
+
+
+
+/**
+ * Function to render the slideshow.
+ * @return string : Output is the themed slideshow.
+ *
+ *
+ */
+function gp_homepage_slideshow() {
+  $nodes = gp_homepage_nodequeue_get_all_nodes();
+  $slideshow = theme('slideshow',$nodes);
+  return $slideshow;
+    
+}
+
+/**
+ * Function to render the slideshow.
+ * @return string : Output is the themed slideshow.
+ *
+ *
+ */
+function gp_homepage_nodequeue_get_all_nodes()
+{
+
+    $sqid;
+    $backward = false;
+    $sql="SELECT qid FROM {nodequeue_queue} WHERE title='Homepage Rotator'";
+    $result = db_query($sql);
+    $nqidobj = db_fetch_object($result);
+	
+    if($nqidobj==null){
+        return null;
+    }
+//echo $nqidobj->qid;exit;
+    $orderby = ($backward ? "ASC" : "DESC");
+
+    $sql = db_rewrite_sql("SELECT n.nid FROM {node} n INNER JOIN {nodequeue_nodes} nn ON n.nid = nn.nid WHERE nn.qid = %d  ORDER BY nn.position $orderby limit 4");
+
+    $result = db_query($sql, $nqidobj->qid);
+    $nodes=array();
+    while($nidobj = db_fetch_object($result))
+    {
+        $nodes[] = node_load($nidobj->nid);
+    }
+    return $nodes;
+
+}
+
+
+
+
+/**
+ * Function to render the right hand side site description block on homepage.
+ * @return string : Output is the themed right hand side site description block on homepage.
+ *
+ * @author aradhana <aradhana@axelerant.com>
+ */
+
+function gp_homepage_desc_right() {
+    //$desc_right = "<img src='sites/all/themes/gptheme/images/temp/sticky.jpg' alt='' title='' />";
+    $block_delta = variable_get('homepage_desc_right','');
+    $desc_right = module_invoke('gpapi','block_embed','gp_blocks',$block_delta);
+    return $desc_right;
+}
+
+/**
+ * Function to render the latest news section on the homepage.
+ * It extract data from specified nodequeue and calls a tpl to render data alongwith necessary html.
+ * @return string : Output is the themed newsblock.
+ *
+ *
+ * @author aradhana <aradhana@axelerant.com>
+ */
+
+function gp_homepage_newsblock() {
+  
+    $query = "SELECT n.title title,n.created creation_date, ua.dst node_path
+            FROM node n
+            INNER JOIN nodequeue_nodes nodequeue_nodes_node ON n.nid = nodequeue_nodes_node.nid
+            INNER JOIN nodequeue_subqueue nodequeue_subqueue ON nodequeue_nodes_node.qid = nodequeue_subqueue.qid and nodequeue_nodes_node.sqid = nodequeue_subqueue.sqid
+            INNER JOIN nodequeue_queue nq ON nodequeue_nodes_node.qid = nq.qid
+            INNER JOIN url_alias ua ON CONCAT_WS('/','node',CAST(n.nid AS CHAR)) = ua.src
+            WHERE (nodequeue_nodes_node.nid <> 0) AND nq.title like 'homepage_news'
+            ORDER BY  nodequeue_nodes_node.position DESC limit 3";
+    $news_data = array();
+    $result = db_query($query);
+    while($row = db_fetch_array($result)) {
+       
+        $news_data['title'] = $row['title'];
+        $news_data['creation_date'] = date('l, F d, Y',$row['creation_date']);
+        //$news_data['creation_date'] = format_date($row['creation_date'], 'gp2');
+        $news_data['node_path'] = $row['node_path'];
+        $news_array[] = $news_data;
+    }
+
+    return theme('gpindex_news',$news_array);
+}
+
+/**
+ * Function to render the small description section on homepage .
+ * It calls the defined block and output its content.
+ * @return string : Output is the themed description section.
+ *
+ * @author aradhana <aradhana@axelerant.com>
+ */
+
+function gp_homepage_desc_middle() {
+   // $desc_middle = module_invoke('gpapi','block_embed','block', 1);
+    $block_delta = variable_get('homepage_desc_middle','');
+    $desc_middle = module_invoke('gpapi','block_embed','gp_blocks',$block_delta);
+    return $desc_middle;
+}
+
+/**
+ * Function to render the newsletter section.
+ * @return string : Output is the themed newsletter section.
+ *
+ * @author aradhana <aradhana@axelerant.com>
+ */
+
+function gp_homepage_newsletter() {
+
+   // $newsletter_block = module_invoke('gpapi','block_embed','gp_blocks','gp_newsletter');
+   $newsletter_block = module_invoke('gpapi','block_embed','gp_blocks','gp_purchase_givingcard');
+    return $newsletter_block;
+}
+
+/**
+ * Function to render the sitewide header.
+ * @return string : Output is the themed header.
+ *
+ *
+ */
+
+function gp_homepage_header() {
+    $sections['top_menu']   = theme('top_menu', menu_secondary_links());
+    $sections['search_box'] = drupal_get_form('search_theme_form');
+    return theme('header', $sections);
+}
+/**
+ * Function to render the sitewide footer.
+ * @return string : Output is the themed footer.
+ *
+ *
+ */
+
+function gp_homepage_footer() {
+    return theme('footer');
+}
+

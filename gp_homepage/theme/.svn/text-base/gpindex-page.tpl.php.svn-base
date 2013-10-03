@@ -1,0 +1,27 @@
+<?php
+/**
+ * This is the main template for the index page of mygivingpoint.org
+ *
+ * @package givingpoint_package
+ * @subpackage gp_homepage
+ *
+ * @category module
+ *
+ * $sections: An array which contains the html to be rendered for diffrent sections of the page.
+ */
+?>
+
+<div class="gp-homepage-main">
+    <div class="gp-homepage-level1">
+        <div class="gp-homepage-slideshow float-l"><?php echo $sections['slideshow'];?></div>
+        <div class="gp-homepage-description float-r"><?php echo $sections['desc_right'];?></div>
+    </div>
+    <div class="gp-homepage-level2 clear">
+        <div class="home-page-block gp-homepage-left"><?php echo $sections['newsblock'];?></div>
+        <div class="home-page-block gp-homepage-middle"><?php echo $sections['desc_middle'];?></div>
+        <div class="home-page-block gp-homepage-right center-align">
+        <!-- <div class="decore"><a href="/donors-learn-more" class="donate-button-gp">Donate Now!</a></div> -->
+        <?php echo $sections['newsletter'];?>
+        </div>
+    </div>
+</div>

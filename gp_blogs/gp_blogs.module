@@ -1,0 +1,78 @@
+<?php
+/**
+ * Module to implement the blogs of mygivingpoint.org.
+ * It will be using the blog module of the drupal core..
+ *
+ * @package givingpoint_package
+ * @subpackage gp_blogs
+ *
+ * @category module
+ */
+
+
+
+/**
+ * Implementation of theme hook.
+ * @return <type>
+ *
+ */
+function gp_blogs_theme() {
+    $path = drupal_get_path('module', 'gp_blogs');
+    $base = array(
+        'path' => "$path/theme",
+    );
+    return array(
+        'list_blogs_block' => $base + array(
+            'template' => 'list-blogs-block',
+            'arguments' => array('items'=>array(),),
+        ),
+    );
+}
+/**
+ * Function to return the themed output for the listing for the recent blog entries of a user.
+ * @param <type> $uid
+ * @param <type> $ommited_nids: array of the node ids which should be ommited
+ * @return <type>
+ *
+ */
+function gp_blogs_list_blogs($uid, $ommited_nids=array(), $limit=5) {
+    if(!empty ($ommited_nids)){
+        $ommited_nids = implode(',', $ommited_nids);
+        $ommited_nids_query = "and $ommited_nids";
+    }else{
+        $ommited_nids_query = " ";
+    }
+    $query = "select n.nid, n.uid, ua.dst, n.created from node n
+    LEFT JOIN url_alias ua ON CONCAT_WS('/','node',CAST(n.nid AS CHAR)) = ua.src
+    where n.type='blog'
+    and n.uid = $uid $ommited_nids_query LIMIT $limit";
+    $result = db_query($query);
+    $items = array();
+    while($item = db_fetch_object($result)){
+        array_push($items, $item);
+    }
+    return theme('list_blogs_block', $items);
+}
+
+
+function gp_blogs_filter($op, $delta = 0, $format = -1, $text = '', $cache_id = 0) {
+  switch ($op) {
+    case 'list':
+      return array(0 => t('Javascript Filter'));
+
+    case 'description':
+      return t('Filter javascript code');
+
+    case 'prepare':
+      return $text;
+
+    case "process":
+      $text = preg_replace('#<script[^>]*>.*?</script>#is','',$text);
+      $text = strip_tags($text, "<a><em><strong><cite><code><ul><ol><li><dl><dt><dd><embed><img>");
+      return $text;
+
+    default:
+      return $text;
+  }
+}
+

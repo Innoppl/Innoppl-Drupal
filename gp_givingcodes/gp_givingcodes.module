@@ -1,0 +1,812 @@
+<?php
+
+/**
+ * Provides the menu entry located at donation/paypal
+ */
+function gp_givingcodes_menu() {
+  $items['purchase/givingcard'] = array(
+      'title' => 'Giving Card Purchase',
+      'page callback' => 'gp_purchase_givingcodes_page',
+    //   'access callback' => 'gp_givingcodes_purchase_access',
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK
+  );
+  $items['testgivingcardemail'] = array(
+      'title' => 'Thank you for purchasing the Giving Card',
+      'page callback' => 'testpdfattachment',
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK);
+
+  $items['givingcard/thanks/%'] = array(
+      'title' => 'Thank you for purchasing the Giving Card',
+      'page callback' => 'gp_givingcode_thanks_page',
+      'page arguments' => array(2),
+      'access arguments' => array('access content'),
+      'type' => MENU_CALLBACK);
+  return $items;
+}
+
+/**
+ * Builds the form input fields for the general
+ * information section.
+ *
+ * @TODO:  determine which of these are required
+ */
+function _gp_givingcode_form_step1($form_state) {
+  global $user;
+
+        
+if($user->uid == 0) {
+
+/// $form ['text']['#prefix'] = "<div class = 'login-gift-card'>";
+  $form['user_email'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Your email address'),
+      '#required' => true,
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['user_email'],$form_state['values']['user_email']),
+      '#options' => $options_array,
+      '#weight' => -10,
+
+  );
+
+
+  $form['user_first_name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Your First name'),
+      '#required' => true,
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['user_first_name'],$form_state['values']['user_first_name']),
+      '#options' => $options_array,
+      '#weight' => -8,
+
+  );
+
+  $form['user_last_name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Your Last name'),
+      '#required' => true,
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['user_last_name'],$form_state['values']['user_last_name']),
+      '#options' => $options_array,
+      '#weight' => -7,
+
+  );
+
+}
+
+
+
+
+
+//$form ['text']['#value'] = 'testing card';
+$form['text'] = array('#weight'=> 0, '#value' =>"<b>How would you like to send your Giving Card?:</b>");
+  $form['purchase_type_email'] = array(
+      '#type' => 'checkbox',
+      '#default_value' => !isset($form_state['values']['purchase_type_email'])?0:$form_state['values']['purchase_type_email'],
+      //'#title' => t('How would you like to send your Giving Card?'),
+      '#title' => t('Send via email'),
+   //   '#required' => TRUE,
+      '#weight' => 1,
+	  '#prefix' => "<div id='purchase-gpcode-pp'>",
+  );
+  
+  $form['purchase_type_print'] = array(
+      '#type' => 'checkbox',
+      '#default_value' => !isset($form_state['values']['purchase_type_print'])?0:$form_state['values']['purchase_type_print'],
+      '#title' => t('Print via PDF'),
+    //  '#required' => TRUE,
+      '#weight' => 3,
+     '#suffix' => "</div>",
+  );
+  
+  $form['to_name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('To (name)'),
+     // '#required' => true,
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['to_name'],$form_state['values']['to_name']),
+      '#options' => $options_array,
+      '#weight' => -12
+  );
+
+  $form['to_email'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['to_email'],$form_state['values']['to_email']),
+      '#title' => t('Where should your Giving Card be sent? (Email address)'),
+      '#rows' => 4,
+    //  '#required' => True,
+      '#weight' => 2
+  );
+
+ 
+  $form['print_text'] = array(
+  '#type' => 'item',
+  '#title' => t(''),
+  '#weight' => 4,
+  '#prefix' => '<div class="print-pdf-text">',
+  '#value' => "PDF will be available in your account after you've made the purchase.",
+  '#suffix'=>'</div>',
+);
+
+  $form['from_name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('From'),
+      '#description' => t('This is the name you would like to appear on the Giving Card'),
+      '#required' => true,
+      '#default_value' => passion_dv($form_state['values']['from_name'],gpapi_displayname($user)),
+      '#options' => $options_array,
+      '#weight' => -4,
+
+
+  );
+
+
+  $form['amount'] = array(
+      '#type' => 'textfield',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['amount'],$form_state['values']['amount']),
+      '#title' => t('Amount'),
+      '#maxlength' => 10,
+      '#size'      => 10,
+      '#required' => TRUE,
+      '#weight' => -3,
+  );
+
+  $form['message'] = array(
+      '#type' => 'textarea',
+      '#default_value' => passion_dv($form_state['storage']['values'][1]['message'],$form_state['values']['message']),
+      '#title' => t('Personal message to the recepient'),
+      '#rows' => 4,
+      '#required' => False,
+      '#weight' => -2
+  );
+
+
+  return $form;
+
+}
+
+/**
+ * The initial collection of causes.
+ */
+function _gp_givingcode_form_step2($form_state) {
+  global $user;
+  global $_lm_paypal_debug;
+  global $_lm_paypal_host;
+  global $_lm_paypal_business;
+  global $_lm_paypal_donations_thanks;
+
+  $logged_in_user = $user;
+  _lm_paypal_donations_ini();
+  $ccc = 'USD';
+
+if($user->uid == 0) {
+ //   echo "<pre>"; print_r($form_state); exit;
+    module_load_include('module', 'logintoboggan', 'logintoboggan');
+    if(isset($form_state['storage']['values'][1]['user_email']) && !empty($form_state['storage']['values'][1]['user_email'])) {
+        $is_user_exists = user_load(array('mail'=> $form_state['storage']['values'][1]['user_email'] ));
+      //  var_dump($is_user_exists); exit;
+        if(($is_user_exists == FALSE)) {
+          $frm  = array();
+          $frm_state = array();
+          $frm_state['values']['pass'] = user_password();
+          $frm_state['values']['mail'] = $form_state['storage']['values'][1]['user_email'];
+          
+            $namenew = preg_replace('/@.*$/', '', $form_state['storage']['values'][1]['user_email']);
+            // if username generated from email record already exists, append underscore and number eg:(chris_123)
+            if (db_result(db_query("SELECT count(*) FROM {users} WHERE LOWER(name) = LOWER('%s')", $namenew)) > 0) {
+              // find the next number available to append to the name
+              $sql = "SELECT SUBSTRING_INDEX(name,'_',-1) FROM {users} WHERE name REGEXP '%s' ORDER BY CAST(SUBSTRING_INDEX(name,'_',-1) AS UNSIGNED) DESC LIMIT 1";
+              $nameidx = db_result(db_query($sql, '^'. $namenew .'_[0-9]+$'));
+              $namenew .= '_'. ($nameidx + 1);
+            }
+
+          $frm_state['values']['name'] = $namenew;
+          $frm_state['values']['roles'] = array(2=>'authenticated user', 5=> 'Donor');
+          fm_handler_user_register_submit($frm, $frm_state);
+          $account = user_save('', array_merge($frm_state['values'], array('pass' => $frm_state['values']['pass'], 'init' => $frm_state['values']['mail'], 'roles' => $frm_state['values']['roles'], 'status' => 1)));
+          $account->password = $frm_state['values']['pass'];
+
+          gpapi_update_profile_info($account, 'profile_first_name', $form_state['storage']['values'][1]['user_first_name']);
+          gpapi_update_profile_info($account, 'profile_last_name', $form_state['storage']['values'][1]['user_last_name']);
+
+          $timestamp = time();
+          $validate_url = url("user/validate/$account->uid/$timestamp/". md5($timestamp . $account->pass . $account->mail), array('absolute' => TRUE));
+          $login_url = variable_get('user_register', 1) == 1 ? $validate_url : NULL;
+        
+          $mailkey = 'register_no_approval_required';
+
+          // Mail the user.
+          _logintoboggan_mail_notify($mailkey, $account, $login_url);
+          $logged_in_user = $user;
+          $user = $account;
+        }
+        else {
+          $logged_in_user = $user;
+          $user = $is_user_exists;
+        }
+    }
+}
+
+  $amount = $form_state['storage']['values'][1]['amount'];
+  $message = $form_state['storage']['values'][1]['message'];
+  if(!empty($form_state['storage']['values'][1]['to_name'])) {
+    $to_name = $form_state['storage']['values'][1]['to_name'];
+  }
+  else {
+      $to_name = $form_state['storage']['values'][1]['from_name'];
+  }
+  $from_name = $form_state['storage']['values'][1]['from_name'];
+  if(!empty($form_state['storage']['values'][1]['to_email'])) {
+  $to_email = $form_state['storage']['values'][1]['to_email'];
+  }
+  else {
+      $to_email = $user->mail;
+  }
+if(isset($form_state['storage']['values'][1]['purchase_type_email'])) {
+    if($form_state['storage']['values'][1]['purchase_type_email'] == 1) {
+        $purchase_type = 'email';
+    }
+    else {
+        $purchase_type = 'print';
+    }
+}
+  //Create a givingcode node and attach it here
+  $node = new StdClass();
+  $node->type = 'givingpoint_code';
+  $node->status = 1;
+  if (!empty($user->uid) && ($user->uid != 0)) {
+    $node->uid = $user->uid;
+  }
+
+  $node->title = "Giving Card purchased by {$user->profile_first_name} for amount $".number_format($amount,2)." to {$to_name}";
+  $node->body = '';
+  $node->field_givingcode_amount[0]['value'] = $amount; //array(array('value' => $amount) );
+  $node->field_givingcode_message[0]['value'] = $message;
+  $node->field_to_name[0]['value'] = $to_name; //array(array('value' => $amount) );
+  $node->field_from_name[0]['value'] = $from_name;
+  $node->field_to_email[0]['value'] = $to_email;
+  $node->field_givingcode[0]['value'] = '';
+  $node->field_transaction_id[0]['value'] = '';
+  $node->field_purchase_type[0]['value'] =  $purchase_type;
+
+  node_submit($node);
+  node_save($node);
+
+  $givingcode_id = $node->nid;
+
+  $out = "<br /><div class=\"donation-confirmation\">";
+  $out .= "You've chosen to purchase Giving Card for amount \$".number_format($amount,2)." to $to_name. On confirming, you'll be redirected to
+             Paypal to complete the payment process.";
+  $out .= '</div>';
+
+  $form['response'] = array(
+      '#id' => 'response',
+      '#type' => 'item',
+      '#value' => $out,
+  );
+
+  //$ret_url = "http://www.mygivingpoint.org/donation/thanks/{$project_id}/{$donation_id}";
+  $ret_url = url("givingcard/thanks/{$givingcode_id}",array('absolute'=>true));
+  $biz = check_plain($_lm_paypal_business);
+  if ($ret_url == '' || is_null($ret_url)) {
+    $ret_url = $_lm_paypal_donations_thanks;
+  }
+  if (variable_get('clean_url', 0)) {
+    $return_url = url(check_url($ret_url), array('query' => NULL, 'fragment' => yNULL, 'absolute' => TRUE));
+  }
+  else {
+    $return_url = url(NULL, array('query' => 'q='. check_url($ret_url), 'fragment' => NULL, 'absolute' => TRUE));
+  }
+  $notify_url = url('lm_paypal/ipn', array('query' => NULL, 'fragment' => NULL, 'absolute' => TRUE));
+  $form['cmd'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => '_xclick');
+  $form['business'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $biz);
+  $form['item_name'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => 'Purchase Giving Card');
+  $form['item_number'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $givingcode_id);
+  $form['notify_url'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $notify_url);
+  $form['amount'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $amount,
+      "#size" => '20');
+  $form['no_shipping'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['return'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $return_url);
+  $form['currency_code'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $ccc);
+  $form['no_note'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => "1");
+  $form['custom'] = array('#title' => t(''),
+      '#type' => 'hidden',
+      '#default_value' => $user->uid );
+
+  $form['#action'] = "http://$_lm_paypal_host/cgi-bin/webscr";
+
+$user = $logged_in_user;
+
+  return $form;
+}
+
+/**
+ * Our form is it's own page, so this is the hook method
+ * to create the form.
+ */
+function gp_purchase_givingcodes_page($givingcode_id=null) {
+  return drupal_get_form('gp_givingcode_form',$givingcode_id);
+}
+
+/**
+ * Our form is it's own page, so this is the hook method
+ * to create the form.
+ */
+function gp_givingcode_thanks_page($givingcode_id=null) {
+
+  $output = "";
+
+  if ($givingcode_id != null) {
+      $givingcard_info = node_load($givingcode_id);
+      permissions_grant_permissions('anonymous user', array('access PDF version'));
+        $output = "<p>Thank you!   You have just purchased a Giving Card.</p>
+                       <p>Your transaction ID is {$givingcode_id}.</p>".
+                       l('Click here',"printpdf/{$givingcode_id}")." to download your Giving Card <p>&nbsp;</p>";
+   // permissions_revoke_permissions('anonymous user', array('access PDF version'));
+  }
+
+  return $output;
+}
+
+
+
+
+/**
+ * This is called to create the form in each step.
+ * The first time in, form_values is NULL, after that,
+ * interegate the 'step' hidden attribute to determine
+ * where we are.
+ *
+ * Only the last step should create a 'Submit' button as that
+ * will trigger the passion_form_submit method.  By just using
+ * a 'button' for the other steps, only the passion_form_validate
+ * method is invoked.
+ */
+function gp_givingcode_form($form_state,$givingcode_id=null) {
+
+global $user;
+
+    if(!((in_array('Donor', $user->roles)) || (in_array('anonymous user', $user->roles)))) {
+        if(in_array('Giving Pointer',$user->roles)) {
+            $message = "You are currently logged in as a TEEN on GivingPoint.  You must have a DONOR/SUPPORTER account in order to purchase Giving Cards.  If you are a teen, please check with your parent or guardian before creating a DONOR/SUPPORTER account on GivingPoint. <br />Thank you for your interest in giving the joy of philanthropy through a GivingPoint Gift Card!";
+        }
+        elseif(in_array('Non-Profit Organization',$user->roles)) {
+            $message = "You are currently logged in as a Nonprofit Organization on GivingPoint.  You must have a DONOR/SUPPORTER account in order to purchase Giving Cards.  <br />Thank you for your interest in giving the joy of philanthropy through a GivingPoint Gift Card!";
+        }
+        else {
+            $message = "You are currently logged in as a TEEN on GivingPoint.  You must have a DONOR/SUPPORTER account in order to purchase Giving Cards.  If you are a teen, please check with your parent or guardian before creating a DONOR/SUPPORTER account on GivingPoint. <br />Thank you for your interest in giving the joy of philanthropy through a GivingPoint Gift Card!";
+        }
+        
+        $form['text'] = array('#weight'=>-125,'#value'=>$message);
+        if(isset($form['submit'])) {
+            unset($fomr['submit']);
+        }
+    }
+    else {
+  if (empty($form_state['storage']['step'])) {
+  // we are coming in without a step, so default to step 1
+    $form_state['storage']['step'] = 1;
+  }
+
+  //demo different fields on different steps
+  switch ($form_state['storage']['step']) {
+    case 1:
+      $form = _gp_givingcode_form_step1($form_state);
+
+      $form['next'] = array(
+          '#type' => 'submit',
+          '#value' => t('Submit'),
+          '#weight'=> 6 );
+      break;
+    case 2:
+      $form = _gp_givingcode_form_step2($form_state);
+      $form['next'] = array(
+          '#type' => 'submit',
+          '#value' => t('Confirm'));
+      break;
+  }
+    }
+  return $form;
+}
+
+/**
+ * This should only be called after the final step.  It is
+ * up to each step to carry the state along in hidden fields
+ * if necessary.
+ */
+function gp_givingcode_form_submit($form, &$form_state) {
+
+//save the values for the current step into the storage array
+  $form_state['storage']['values'][$form_state['storage']['step']] = $form_state['values'];
+
+  // check the button that was clicked and action the step chagne
+  if ($form_state['clicked_button']['#id']=='edit-previous') {
+    $form_state['storage']['step']--;
+  } elseif ($form_state['clicked_button']['#id']=='edit-next') {
+    $form_state['storage']['step']++;
+  }
+
+  //tell Drupal we are redrawing the same form
+  $form_state['rebuild'] = TRUE;
+}
+
+function gp_givingcodes_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+  global $user;
+  $logged_in_user = $user;
+  switch ($op) {
+  //case 'load':
+  //case 'view':
+    case 'alter' : {
+        if($node->type=='givingpoint_code') {
+          $account  = user_load($node->uid);
+          $content  = theme('givingpoint_code', $node, $account);
+          $node->body = $content;                               //echo "<pre>";print_r($node);echo "</pre>";exit;
+        }
+      }
+  }
+}
+
+function gp_givingcodes_theme() {
+
+  $path = drupal_get_path('module', 'gp_givingcodes');
+  $base = array(
+      'path' => "$path/theme",
+  );
+  return array(
+  'givingpoint_code' => $base + array(
+      'template' => 'givingpoint-code',
+      'arguments' => array('node' => array(),'account'=>array(),),
+  ),
+  );
+}
+
+/**
+ * Function to send givingcode emails
+ * @global <type> $base_url
+ * @param <type> $givingcode_node
+ */
+function gp_givingcodes_send_givingcode_pdf_email($givingcode_node = array()) {
+
+  global $base_url;
+  global $language;
+
+  $author_info = user_load($givingcode_node->uid);
+  $trenner  = md5(uniqid(time()));
+
+  $username = 'admin';
+  $password = 'g1p0int';
+
+    permissions_grant_permissions('anonymous user', array('access PDF version'));
+  $context = stream_context_create(array(
+      'http' => array(
+      'header'  => "Authorization: Basic " . base64_encode("$username:$password")
+      )
+  ));
+
+  $files_path = file_directory_path();
+  if (!file_exists($files_path ."/givingcodes")) {
+    mkdir($files_path ."/givingcodes");
+  }
+  $path = $base_url."/printpdf/{$givingcode_node->nid}";
+  $content = file_get_contents($path, false, $context);
+  $pdffile_name = $givingcode_node->nid.'.pdf';
+  $pdffile_mime = "application/pdf";
+
+  $params['trenner'] = $trenner;
+  $p['givingcode'] = array(
+      'personal_message' => $givingcode_node->field_givingcode_message[0]['value'],
+      'givingcode_id' => $givingcode_node->nid,
+      'givingcode_number' => $givingcode_node->field_givingcode[0]['value'],
+      'code_sent_to' => $givingcode_node->field_to_name[0]['value'],
+      'code_sent_from' => $givingcode_node->field_from_name[0]['value'],
+      'amount' => "$".number_format($givingcode_node->field_givingcode_amount[0]['value'],2),
+      'donor_name' => $author_info->profile_first_name,
+      'expiration' => '1 year from the date of issue',
+      'created_date' => date('m/d/Y',$givingcode_node->created),
+      'resent'  => FALSE,
+  );
+  $template = drupal_wrap_mail(t(_gpapi_get_mail_template('givingcode_email_to_recipient',null,null,$p['givingcode'])));
+  $from = variable_get('site_mail', ini_get('sendmail_from'));
+  $subject = "You just received a gift to support a young social entrepreneur.";
+  $encoded_content = chunk_split(base64_encode($content));
+
+  // headers
+  $headers = "From: \"$from\" MIME-Version: 1.0
+Content-Type: Multipart/Mixed; boundary=\"$trenner\"
+--$trenner
+Content-Type: text/html; charset=UTF-8; format=flowed;
+
+$template
+
+
+
+
+--$trenner
+Content-Type: $pdffile_mime; name=\"$pdffile_name\"
+Content-Disposition: attachment; filename=\"$pdffile_name\"
+Content-Transfer-Encoding: base64
+
+      $encoded_content --$trenner--";
+
+  if(mail($givingcode_node->field_to_email[0]['value'], $subject, $template, $headers)) {
+      watchdog('PDF_email_for_givingcode',"Email sent to {$givingcode_node->field_to_email[0]['value']} for nid: {$givingcode_node->nid}");
+  }
+
+
+
+//drupal_mail('gp_givingcode', 'givingcard', "agupta@axelerant.com", $language, $params, $from , True);
+
+
+//drupal_mail('gpapi','givingcode_email_to_recipient',  $givingcode_node->field_to_email[0]['value'], $language, $params);
+
+//drupal_mail('gpapi','givingcode_email_to_recipient',  'agupta@axelerant.com', $language, $params, $from, True);
+
+
+  drupal_mail('gpapi','givingcode_email_to_sender', $author_info->mail, $language, $p);
+
+    permissions_revoke_permissions('anonymous user', array('access PDF version'));
+}
+
+
+/**
+ * Implementation of hook_mail().
+ */
+function gp_givingcode_mail($key, &$message, $params) {
+
+  $trenner = $params['trenner'];
+  $message['subject'] = $params['subject'];
+  $message['body'][] = $params['body'];
+  $message['headers']['MIME-Version'] = '1.0';
+  $message['headers']['Content-Type'] = "multipart/mixed; boundary=$trenner";
+
+  print_r($message);
+//exit;
+}
+
+
+function gp_givingcode_form_validate($form, &$form_state) {
+
+  $email_address = $form_state['values']['to_email'];
+ // echo "<pre>"; print_r($form_state); exit;
+ //echo "<pre>"; print_r($_SESSION); exit;
+
+  if ($form_state['values']['purchase_type_email'] == 0 && $form_state['values']['purchase_type_print'] == 0) {
+    form_set_error('purchase_type_email', t('How would you like to send your Giving Card? field is required.'));
+  }
+
+  if (!is_numeric($form_state['values']['amount'])) {
+    form_set_error('amount', t('Amount should be numeric.'));
+  }
+  if($form_state['values']['amount'] < 5) {
+    form_set_error('amount', t('Amount should be more than 5.'));
+  }
+//echo "<pre>"; print_r($_SESSION); exit;
+}
+
+function gp_givingcodes_pdf_controller() {
+
+  global $base_url, $language;
+
+  // Disable caching for generated PDFs, as Drupal doesn't ouput the proper headers from the cache
+  $GLOBALS['conf']['cache'] = FALSE;
+
+  $args = func_get_args();
+  $path = implode('/', $args);
+  $cid = isset($_GET['comment']) ? (int)$_GET['comment'] : NULL;
+
+  $print_pdf_pdf_tool = variable_get('print_pdf_pdf_tool', PRINT_PDF_PDF_TOOL_DEFAULT);
+
+  $print = print_controller($path, $cid, PRINT_PDF_FORMAT);
+  if ($print === FALSE) {
+    return;
+  }
+
+  // Img elements must be set to absolute
+  $pattern = '!<(img\s[^>]*?)>!is';
+  $print['content'] = preg_replace_callback($pattern, '_print_rewrite_urls', $print['content']);
+  $print['logo'] = preg_replace_callback($pattern, '_print_rewrite_urls', $print['logo']);
+  $print['footer_message'] = preg_replace_callback($pattern, '_print_rewrite_urls', $print['footer_message']);
+  // And converted from private to public paths
+  $file_downloads = variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC);
+  if ($file_downloads == FILE_DOWNLOADS_PRIVATE) {
+    switch (variable_get('language_negotiation', LANGUAGE_NEGOTIATION_NONE)) {
+      case LANGUAGE_NEGOTIATION_PATH_DEFAULT:
+      case LANGUAGE_NEGOTIATION_PATH:
+        $lang = $language->language;
+        break;
+      default:
+        $lang = '';
+        break;
+    }
+    $pattern = "!(<img\s[^>]*?src\s*?=\s*?['\"]?)${base_url}/(?:(?:index.php)?\?q=)?(?:${lang}/)?system/files(/[^>]*?>)!is";
+    $replacement = '$1file://'. realpath(file_directory_path()) .'$2';
+    $print['content'] = preg_replace($pattern, $replacement, $print['content']);
+    $print['logo'] = preg_replace($pattern, $replacement, $print['logo']);
+    $print['footer_message'] = preg_replace($pattern, $replacement, $print['footer_message']);
+  }
+
+  $node = $print['node'];
+  ob_start();
+  include_once(_print_get_template(PRINT_PDF_FORMAT, $print['type']));
+  $html = ob_get_contents();
+  ob_end_clean();
+  $html = drupal_final_markup($html);
+
+  // Convert the a href elements, to make sure no relative links remain
+  $pattern = '!<(a\s[^>]*?)>!is';
+  $html = preg_replace_callback($pattern, '_print_rewrite_urls', $html);
+  // And make anchor links relative again, to permit in-PDF navigation
+  $html = preg_replace("!${base_url}/". PRINTPDF_PATH ."/.*?%2523!", '#', $html);
+
+  $pdf_filename = variable_get('print_pdf_filename', PRINT_PDF_FILENAME_DEFAULT);
+  if (function_exists('token_replace') && !empty($pdf_filename)) {
+    $pdf_filename = token_replace($pdf_filename, 'node', $node) .'.pdf';
+  }
+  else {
+    $pdf_filename = str_replace('/', '_', $path) .'.pdf';
+  }
+  if (basename($print_pdf_pdf_tool) == 'dompdf_config.inc.php') {
+    _print_pdf_dompdf($print, $html, $pdf_filename);
+  }
+  elseif (basename($print_pdf_pdf_tool) == 'tcpdf.php') {
+    _print_pdf_tcpdf($print, $html, $pdf_filename);
+  }
+  elseif (basename($print_pdf_pdf_tool) == 'wkhtmltopdf') {
+    $pdf_output_str = gp_givingcodes_pdf_wkhtmltopdf($print, $html, $pdf_filename);
+    return $pdf_output_str;
+  }
+  else {
+    return drupal_not_found();
+  }
+
+  $nodepath = (isset($node->path)) ? drupal_get_normal_path($node->path) : 'node/'. $path;
+  db_query("UPDATE {print_pdf_page_counter} SET totalcount = totalcount + 1, timestamp = %d WHERE path = '%s'", time(), $nodepath);
+  // If we affected 0 rows, this is the first time viewing the node.
+  if (!db_affected_rows()) {
+  // We must create a new row to store counters for the new node.
+    db_query("INSERT INTO {print_pdf_page_counter} (path, totalcount, timestamp) VALUES ('%s', 1, %d)", $nodepath, time());
+  }
+
+}
+
+function gp_givingcodes_pdf_wkhtmltopdf ($print, $html, $filename) {
+  $print_pdf_pdf_tool = variable_get('print_pdf_pdf_tool', PRINT_PDF_PDF_TOOL_DEFAULT);
+  $print_pdf_paper_size = drupal_strtolower(variable_get('print_pdf_paper_size', PRINT_PDF_PAPER_SIZE_DEFAULT));
+  $print_pdf_page_orientation = variable_get('print_pdf_page_orientation', PRINT_PDF_PAGE_ORIENTATION_DEFAULT);
+  $print_pdf_content_disposition = variable_get('print_pdf_content_disposition', PRINT_PDF_CONTENT_DISPOSITION_DEFAULT);
+  $print_pdf_wkhtmltopdf_options = variable_get('print_pdf_wkhtmltopdf_options', PRINT_PDF_WKHTMLTOPDF_OPTIONS);
+  $print_pdf_xvfb_options = variable_get('print_pdf_xvfb_options', PRINT_PDF_XVFB_OPTIONS);
+
+  $xvfb_binary = key(file_scan_directory(drupal_get_path('module', 'print'), '^Xvfb$'));
+  $dpi = 96;
+
+  // If available, launch a temporary X server
+  if (isset($xvfb_binary)) {
+    $xdisplay = variable_get('print_pdf_wkhtmltopdf_xdisplay', 10);
+    variable_set('print_pdf_wkhtmltopdf_xdisplay', ($xdisplay == 4990) ? 10 : $xdisplay + 10);
+    $xdisplay += mt_rand(0, 9);
+
+    $xcmd = realpath($xvfb_binary) ." :$xdisplay -screen 0 320x200x24 -dpi $dpi -terminate -nolisten tcp -tst $print_pdf_xvfb_options";
+
+    $xdescriptor = array(0 => array('pipe', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w'));
+    $xprocess = proc_open($xcmd, $xdescriptor, $xpipes, NULL, NULL);
+  }
+
+  $descriptor = array(0 => array('pipe', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w'));
+  $cmd = realpath($print_pdf_pdf_tool) ." --page-size $print_pdf_paper_size --orientation $print_pdf_page_orientation --dpi $dpi $print_pdf_wkhtmltopdf_options - -";
+
+  $process = proc_open($cmd, $descriptor, $pipes, NULL, isset($xvfb_binary) ? array('DISPLAY' => ':'. $xdisplay) : NULL);
+
+  if (is_resource($process)) {
+    fwrite($pipes[0], $html);
+    fclose($pipes[0]);
+
+    $pdf = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+
+    stream_set_blocking($pipes[2], 0);
+    $error = stream_get_contents($pipes[2]);
+    if (!empty($error)) {
+      watchdog('print_pdf', 'wkhtmltopdf: '. $error);
+    }
+    fclose($pipes[2]);
+
+    $retval = proc_terminate($process);
+  }
+  if (isset($xvfb_binary)) {
+    fclose($xpipes[0]);
+    fclose($xpipes[1]);
+    stream_set_blocking($xpipes[2], 0);
+    $xerror = stream_get_contents($xpipes[2]);
+    if (!empty($xerror)) {
+      watchdog('print_pdf', 'wkhtmltopdf Xvfb: '. $xerror);
+    }
+    fclose($xpipes[2]);
+
+    proc_terminate($xprocess);
+  }
+
+  if (!empty($pdf)) {
+    echo "in pdf;"; exit;
+    if (headers_sent()) {
+      die("Unable to stream pdf: headers already sent");
+    }
+    //   header("Cache-Control: private");
+    //  header("Content-Type: application/pdf");
+
+    $attachment =  ($print_pdf_content_disposition == 2) ?  "attachment" :  "inline";
+
+    //  header("Content-Disposition: $attachment; filename=\"$filename\"");
+
+    // echo $pdf;
+    return $pdf;
+  //  flush();
+  }
+  else {
+    drupal_goto($print['url']);
+    exit;
+  }
+
+}
+
+/**
+ *
+ */
+function testpdfattachment() {
+  $testnode = node_load(5758);
+  gp_givingcodes_send_givingcode_pdf_email($testnode);
+
+}
+
+/**
+ * Implemetation of hook_cron. Expires givingcode after one year.
+ */
+function gp_givincodes_cron() {
+
+    $sql_resultset = db_query("select n.nid from node n
+                        left join workflow_node wn on n.nid = wn.nid
+                        left join workflow_states ws on wn.sid = ws.sid
+                        left join workflows w on ws.wid = w.wid
+                        where n.type = '%s' and n.created <= UNIX_TIMESTAMP() and  n.created >= UNIX_TIMESTAMP(DATE_ADD(NOW(), INTERVAL  '-1' YEAR))
+                        and ws.state = '%s'",'givingpoint_code','Purchased');
+
+   while($row = db_fetch_object($sql_resultset)) {
+       $givingpoint_code = node_load($row->nid);
+        $node_wid = module_invoke('workflow','get_workflow_for_type', 'givingpoint_code');
+        if(isset ($states['Expired'])){
+            $sid = $states['Expired'];
+            module_invoke('workflow','execute_transition',$givingpoint_code,$sid,null,true);
+            node_save($givingpoint_code);
+        }
+
+   }
+}
+
+function gp_givingcodes_purchase_access() {
+    global $user;
+
+    if((in_array('Donor', $user->roles)) || (in_array('anonymous user', $user->roles))) {
+        return true;
+    }
+    else {
+        return false;
+    }
+
+}

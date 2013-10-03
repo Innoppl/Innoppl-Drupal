@@ -1,0 +1,355 @@
+<?php
+
+/**
+ * This file contains the defination of all template preprocessors for gp_homepage module.
+ *
+ * @package givingpoint_package
+ * @subpackage gp_homepage
+ *
+ * @category module
+ */
+
+/**
+ *
+ * @param <type> $vars
+ *
+ */
+function gp_homepage_preprocess_page(&$vars) {
+    $vars['gp_header'] = gp_homepage_header();
+    $vars['gp_footer'] = gp_homepage_footer();
+}
+
+/**
+ *
+ * @param <type> $vars
+ *
+ */
+function gp_homepage_preprocess_node(&$vars) {
+    $node = $vars['node'];
+    $type = $node->type;
+
+    // preprocess by node type
+    if (function_exists($function = "gp_homepage_preprocess_node_$type")) {
+        $function($vars);
+    }
+
+    // general node variables processing
+    //
+    // doing a profileload in node template so that in every node template the $user object has profile fields
+    
+    $vars['npo_partner_uid'] = $vars['node']->field_organization[0]['value'];
+    $author_user = user_load($vars['uid']);
+    profile_load_profile($author_user);
+    $vars['author'] = $author_user;
+
+}
+
+/**
+ * This is custom prerocess hook for project node.
+ * @param <type> $vars
+ *
+ */
+function gp_homepage_preprocess_node_node_gallery_image(&$vars) {
+    //$vars['submitted'] = date('l, F d, Y', );
+    $vars['submitted'] = format_date($vars['created'], 'gp1');
+}
+/**
+ * This is custom prerocess hook for project node.
+ * @param <type> $vars
+ *
+ */
+ 
+function gp_homepage_preprocess_node_project(&$vars) {
+
+	
+    //$email_link = drupal_get_form('invite_form');
+  //  echo "<pre>"; print_r($email_link); exit;
+    if(!empty($vars['node']->field_proj_datetime[0]['value'])) {
+        $vars['proj_datetime'] = $vars['node']->field_proj_datetime[0]['value'];
+
+    }
+    if(!empty($vars['node']->field_project_budget[0]['value'])) {
+        $vars['proj_budget'] = $vars['node']->field_project_budget[0]['value'];
+
+    }
+    if(!empty($vars['node']->field_proj_directions[0]['value'])) {
+        $vars['proj_directions'] = $vars['node']->field_proj_directions[0]['value'];
+    }
+    if(!empty($vars['node']->field_add_details[0]['value'])) {
+        $vars['proj_add_details'] = $vars['node']->field_add_details[0]['value'];
+    }
+    if(isset($vars['node']->taxonomy)) {
+
+        $voc_resultset = db_query("select voc.vid as vid, voc.name as voc_name from vocabulary voc");
+        $voc_array = array();
+
+        while($row = db_fetch_object($voc_resultset)) {
+            $voc_array[$row->voc_name] = $row->vid;
+        }
+
+        foreach($vars['node']->taxonomy as $taxonomy) {
+            $taxonomy_voc_name = array_search($taxonomy->vid, $voc_array);
+
+            if(!empty($taxonomy_voc_name)) {
+                switch ($taxonomy_voc_name){
+                    case 'US States':                        
+                        $vars['state_id'] = $taxonomy->tid;
+                        $location = '';
+                        
+                        if(!empty($vars['node']->field_proj_address[0]['value'])) {
+                            $location .= $vars['node']->field_proj_address[0]['value'];
+                        }
+                        if(!empty($vars['node']->field_proj_city[0]['value'])) {
+                            if(!empty($location)) {
+                                $location .= "<br />";
+                            }
+                            $location .= $vars['node']->field_proj_city[0]['value'];
+                        }
+                        if(!empty($taxonomy->name)) {
+                            if(!empty($location)) {
+                                $location .= ",";
+                            }
+                            $location .= $taxonomy->name;
+                        }
+                        if(!empty($vars['node']->field_proj_zipcode[0]['value'])) {
+                            $location .= " ".$vars['node']->field_proj_zipcode[0]['value'];
+                        }
+                        $vars['location'] = $location;
+
+                        break;
+                    case 'Project Categories':
+                        $vars['category_id'] = $taxonomy->tid;
+                        $vars['category_name'] = $taxonomy->name;
+
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+    }
+
+    $thankyou_letter = get_project_thankyou_letter($vars['node']->nid);    
+    if(!empty($thankyou_letter)) {
+        $vars['thankyou_letter'] = $thankyou_letter;
+    }    
+   $proj_album_node = node_load($vars['node']->field_project_album_nid[0]['nid']);
+   $album_config = node_gallery_get_config($proj_album_node->type);
+  // $vars['proj_album'] = theme('gallery_images_list', $proj_album_node, $album_config);
+    $vars['proj_album'] = _get_project_photos($vars['node']->field_project_album_nid[0]['nid']);
+    $start_date = strtotime($vars['node']->field_start_date[0]['value']);
+    $end_date = strtotime($vars['node']->field_end_date[0]['value']);
+    $amount_needed = get_project_donation_amount_needed($vars['node']->nid);
+    $pledge_amount = get_project_pledge_amount($vars['node']->nid);
+    $amount_raised =  get_total_approved_donations($vars['node']->nid);
+    $grants_raised = get_total_approved_grants($vars['node']->nid);
+    $total_amount = $amount_raised + $grants_raised;
+    $donation_short_by = $amount_needed - $total_amount;
+    if($donation_short_by >= 0 ) {
+        if(in_array('Giving Pointer',$vars['user']->roles) || in_array('Donor',$vars['user']->roles) || !in_array('Non-Profit Organization',$vars['user']->roles)) {
+            $vars['donor_required'] = "<div class='donate'>".l('Donate', "donation/paypal/{$vars['node']->nid}", array('html'=>true)). "</div>";
+        }
+//        elseif($vars['user']->uid == 0) {
+//            $vars['donor_required'] = "<div class='donate'>".l('Donate', "donor/login", array('html'=>true, 'query'=>array('destination'=>"donation/paypal/{$vars['node']->nid}", 'ref'=>'donor' )))."</div>";
+//        }
+        else {
+            $vars['donor_required'] = "<div class='donate' id ='button-disabled'>Donate</div>";
+        }
+    }
+    
+    $donor_list = get_pledged_project_donors($vars['user']->uid,$vars['node']->nid);
+//print_r($donor_list);
+//echo $vars['user']->uid;
+    if($donation_short_by >= 0 ) {
+        if(in_array('Donor',$vars['user']->roles) && empty($donor_list) ) {
+            $vars['pledge_donate'] = "<div class='donate'>".l('Make Pledge', "node/add/make-a-pledge/{$vars['node']->nid}", array('html'=>true, 'query'=>array('destination'=>"node/{$vars['node']->nid}"))). "</div>";
+        }elseif(in_array('Donor',$vars['user']->roles) && !empty($donor_list) ) {
+            $vars['pledge_donate'] = "<div class='donate'>".l('Donate to Pledge', "donation/paypal/{$vars['node']->nid}", array('html'=>true)). "</div>";
+        }
+//&& $vars['node']->field_allow_pledge[0]['value'] == 1
+//          elseif($vars['user']->uid == 0) {
+//            $vars['donor_required'] = "<div class='donate'>".l('Donate', "donor/login", array('html'=>true, 'query'=>array('destination'=>"donation/paypal/{$vars['node']->nid}", 'ref'=>'donor' )))."</div>";
+//        }
+        else {
+            //$vars['pledge_donate'] = "<div class='donate' id ='button-disabled'>Make Pledge</div>";
+        }
+    }
+    
+    if(($vars['node']->field_current_volunteers[0]['value'] < $vars['node']->field_volunteers[0]['value']) && ($vars['node']->field_volunteers[0]['value'] != 0) ) {
+        $has_member = false;
+
+        foreach($vars['user']->og_groups as $key => $val) {
+            if($key == $vars['node']->nid) {
+                $has_member = true;
+            }
+        }
+
+        if(!$has_member && in_array('Giving Pointer',$vars['user']->roles)) {
+            $vars['volunteer_required'] = "<div class='volunteer'>".l('Volunteer', "og/subscribe/{$vars['node']->nid}", array('html'=>true, 'query'=>array('destination'=>"node/{$vars['node']->nid}")))."</div>";
+        }
+        elseif($has_member && in_array('Giving Pointer',$vars['user']->roles)) {
+            $vars['volunteer_required'] = "<div class='volunteer' id = 'button-disabled'>Volunteer</div>";
+        }
+        elseif($vars['user']->uid == 0) {
+            $vars['volunteer_required'] = "<div class='volunteer'>".l('Volunteer', "givingpointer/register", array('html'=>true,  'query'=>array('destination'=>$vars['node']->path, 'ref'=>'teen' )))."</div>";
+        }
+        else {
+            $vars['volunteer_required'] = "<div class='volunteer' id = 'button-disabled'>Volunteer</div>";
+        }
+    }
+
+    $donors = module_invoke('gp_project', 'get_donors', $vars['node']->nid);
+    $pledges = module_invoke('gp_project', 'get_pledge', $vars['node']->nid);
+    $anony_donors = module_invoke('gp_project', 'get_anony_donors', $vars['node']->nid);
+    $grants = module_invoke('gp_project', 'get_grants', $vars['node']->nid);
+    $volunteers = module_invoke('gp_project', 'get_volunteers', $vars['node']->nid);
+    $vars['donor_count'] = count($donors);
+    $vars['volunteers_count'] = count($volunteers);
+
+    if( count($donors) < 6 ){
+        if ($donation_short_by > 0)
+        {
+            $obj = new stdClass();
+            $obj->could_be_you = true;
+            $obj->link = "donation/paypal/{$vars['node']->nid}";
+            $obj->picture = "sites/all/themes/gptheme/images/could_be_you.png";
+            array_push($donors, $obj);
+        }
+    }
+
+    if( count($volunteers) < 6 ){
+        if(($vars['node']->field_current_volunteers[0]['value'] < $vars['node']->field_volunteers[0]['value']) && ($vars['node']->field_volunteers[0]['value'] != 0)) {
+                $obj = new stdClass();
+                $obj->could_be_you = true;
+                $obj->link = "givingpointer";
+                $obj->ref = 't';
+
+                if(in_array('Giving Pointer',$vars['user']->roles)) {
+                  $obj->link = "og/subscribe/{$vars['node']->nid}";
+                }elseif($vars['user']->uid){
+                    $obj->link = "you-are-already-registered";
+                    $obj->ref = 't';
+                }
+
+                $obj->picture = "sites/all/themes/gptheme/images/could_be_you.png";
+                array_push($volunteers, $obj);
+         }
+    }
+//    print_r($grants);
+    if(is_array($donors) ||is_array($anony_donors)){
+        $all_donors = array_merge($donors,$anony_donors); 
+        $donors_array = array_chunk(array_slice($all_donors, 0, 6), 3);
+    }else{
+        $donors_array = array();
+    }
+    if(is_array($pledges)){
+        $pledges_array = array_chunk(array_slice($pledges, 0, 6), 3);
+    }else{
+        $pledges_array = array();
+    }
+    if(is_array($grants)){
+        $grants_array = array_chunk(array_slice($grants, 0, 6), 3);
+    }else{
+        $grants_array = array();
+    }
+    if(is_array($volunteers)){
+        $volunteers_array = array_chunk(array_slice($volunteers, 0, 6), 3);
+    }else{
+        $volunteers_array = array();
+    }
+    
+    $vars['start_date'] = $start_date;
+    $vars['end_date'] = $end_date;
+    $vars['donorsgrid'] = theme('usergrid', $donors_array);
+    $vars['pledgesgrid'] = theme('usergrid', $pledges_array);
+    $vars['grantsgrid'] = theme('usergrid', $grants_array);
+    $vars['volunteersgrid'] = theme('usergrid', $volunteers_array);
+    $vars['amount_needed'] = number_format($amount_needed,2);
+    $vars['pledge_amount'] = number_format($pledge_amount,2);
+    $vars['amount_raised'] = number_format($total_amount,2);
+    $vars['grant_raised'] = number_format($grants_raised,2);
+    $vars['remaining_funds'] = number_format($donation_short_by,2);
+    $vars['remaining_volunteer'] = ((int)$vars['node']->field_volunteers[0]['value'] - (int)$vars['node']->field_current_volunteers[0]['value']);
+}
+/**
+ *
+ * @param <type> $vars
+ *
+ */
+function gp_homepage_preprocess_header(&$vars) {
+
+    if(arg(0) == 'nav' && is_numeric(arg(1))) {
+        $nav_tree = module_invoke('gpapi','get_nav_tree',arg(1));
+    }   
+    elseif((arg(0) == 'node') && is_numeric(arg(1))) {
+        $nodeinfo = node_load(arg(1));
+        if((($nodeinfo->title == 'Giving Guidance') || ($nodeinfo->title == 'Volunteer Guidance') || ($nodeinfo->title == "Today's Hot Issues")) && ($nodeinfo->type == 'page')) {
+            $taxonomy_info = taxonomy_get_term_by_name($nodeinfo->title);
+            $nav_tree = module_invoke('gpapi','get_nav_tree',$taxonomy_info[0]->tid);
+        }
+        else {
+             $nav_tree = module_invoke('gpapi','get_nav_tree');
+        }
+    }
+    else {
+        $nav_tree = module_invoke('gpapi','get_nav_tree');
+    }
+
+  //  echo "<pre>";print_r($nav_tree);
+    $vars['nav_tree'] = $nav_tree;
+}
+
+/**
+ * This is custom prerocess hook for role model node.
+ * @param <type> $vars
+ *
+ */
+function gp_homepage_preprocess_node_role_model(&$vars) {
+    
+    $vars['disp_fields'] = array();
+    if(!empty($vars['node']->field_first_involved[0]['value'])) {
+        $vars['disp_fields'] += array($vars['node']->content['field_first_involved']['field']['#title'] => $vars['node']->field_first_involved[0]['value']);;
+    }
+    if(!empty($vars['node']->field_passionate_about[0]['value'])) {
+        $vars['disp_fields'] += array($vars['node']->content['field_passionate_about']['field']['#title'] => $vars['node']->field_passionate_about[0]['value']);;
+    }
+    if(!empty($vars['node']->field_sparks_interest[0]['value'])) {
+        $vars['disp_fields'] += array($vars['node']->content['field_sparks_interest']['field']['#title'] => $vars['node']->field_sparks_interest[0]['value']);
+
+    }
+    if(!empty($vars['node']->field_like_nonprofit[0]['value'])) {
+        $vars['disp_fields'] += array($vars['node']->content['field_like_nonprofit']['field']['#title'] => $vars['node']->field_like_nonprofit[0]['value']);;
+    }
+    if(!empty($vars['node']->field_nurtured_personally[0]['value'])) {
+        $vars['disp_fields'] += array($vars['node']->content['field_nurtured_personally']['field']['#title'] => $vars['node']->field_nurtured_personally[0]['value']);
+
+    }
+    if(!empty($vars['node']->field_words_of_advice[0]['value'])) {
+        $vars['disp_fields'] += array($vars['node']->content['field_words_of_advice']['field']['#title'] => $vars['node']->field_words_of_advice[0]['value']);;
+    }
+    if(!empty($vars['node']->field_anyone_else[0]['value'])) {
+        $vars['disp_fields'] += array($vars['node']->content['field_anyone_else']['field']['#title'] => $vars['node']->field_anyone_else[0]['value']);;
+    }
+
+    if(!empty($vars['node']->field_state[0]['value'])) {
+        $term_info = taxonomy_get_term($vars['node']->field_state[0]['value']);
+        $vars['role_model_state'] = array($vars['node']->content['field_state']['field']['#title'] => $term_info->name);;
+    }
+    if(!empty($vars['node']->field_city[0]['value'])) {
+        $vars['role_model_city'] = array($vars['node']->content['field_city']['field']['#title'] => $vars['node']->field_city[0]['value']);;
+    }
+
+}
+
+function gp_homepage_preprocess_node_project_thankyou_letter(&$vars) {
+    global $user;
+
+    $author = user_load($vars['node']->uid);
+    drupal_set_title($author->profile_first_name."'s Thank You Letter");
+
+    foreach($vars['node']->og_groups as $grp_key=> $grp_val) {
+        $project_info = node_load($grp_key);
+    }
+   $vars['assoc_proj_album'] = _get_project_photos($project_info->field_project_album_nid[0]['nid']);
+    
+}
