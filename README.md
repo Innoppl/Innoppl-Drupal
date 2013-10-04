@@ -52,9 +52,9 @@ Home page:
 Home page contains Login block, Lefts side/Top menu items and a slideshow.Also the page having a section to list the top volunteers and to display the total volunteer Hours, total number of volunteers, total donations raised. The recent News items are also available in the bottom of the slide.
 
 
-Ubercart - EBS Payment:
-----------------------
+Ubercart - EBS Payment (API):
+-----------------------------
 
-D7 doesn't have a contributed module for EBS.  This module works well with UberCart 3.5 and enables payment processing.    
+Drupal 7 doesn't have a contributed module for EBS. We developed an API based custom module, which works well with UberCart 3.5 to enable EBS based payment processing.
 
 Requires: uc_payment, currency_api
