@@ -1,0 +1,13 @@
+<?php
+
+/**
+ * @file
+ * Install file for uc_ebs.module.
+ */
+
+function uc_ebs_uninstall() {
+  db_delete('variable')
+  ->condition('name', 'uc_ebs_%%', 'LIKE')
+  ->execute();
+}
+

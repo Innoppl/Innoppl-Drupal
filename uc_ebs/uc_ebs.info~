@@ -1,0 +1,11 @@
+name = "EBS"
+description = "Enable payment processing using EBS."
+dependencies[] = uc_payment
+dependencies[] = currency_api
+core = 7.x
+package = Ubercart - payment
+
+version = "7.x-1.0"
+project = "uc_ebs"
+
+files[] = script/rc43.php
