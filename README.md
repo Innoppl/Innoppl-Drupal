@@ -50,3 +50,11 @@ Home page:
 6. Login block
 
 Home page contains Login block, Lefts side/Top menu items and a slideshow.Also the page having a section to list the top volunteers and to display the total volunteer Hours, total number of volunteers, total donations raised. The recent News items are also available in the bottom of the slide.
+
+
+Ubercart - EBS Payment:
+----------------------
+
+D7 doesn't have a contributed module for EBS.  This module works well with UberCart 3.5 and enables payment processing.    
+
+Requires: uc_payment, currency_api
